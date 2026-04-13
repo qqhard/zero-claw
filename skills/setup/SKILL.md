@@ -99,12 +99,16 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
      ```bash
      tmux new-session -d -s <name> -c <working-dir> './start.sh'
      ```
-   - Wait ~10 seconds for Claude Code to initialize
-   - Configure Telegram plugin by sending the main bot token into the tmux session:
+   - Wait ~15 seconds for Claude Code to initialize
+   - Send "start" to trigger SessionStart hook (registers heartbeat and cron tasks):
+     ```bash
+     tmux send-keys -t <name>:0.0 -l 'start' && tmux send-keys -t <name>:0.0 Enter
+     ```
+   - Wait a few seconds, then configure Telegram plugin:
      ```bash
      tmux send-keys -t <name>:0.0 -l '/telegram:configure' && tmux send-keys -t <name>:0.0 Enter
      ```
-     Wait a few seconds, then send the main bot token:
+   - Wait a few seconds, then send the main bot token:
      ```bash
      tmux send-keys -t <name>:0.0 -l '<main-bot-token>' && tmux send-keys -t <name>:0.0 Enter
      ```
