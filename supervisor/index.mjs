@@ -131,9 +131,22 @@ async function killProcess() {
   return true;
 }
 
+const BOOT_DELAY = parseInt(process.env.BOOT_DELAY || '10'); // seconds to wait before sending init message
+
 function startProcess() {
   ensureSession();
   sh(`tmux send-keys -t ${TMUX_TARGET} 'cd ${WORK_DIR} && ${START_CMD}' Enter`);
+  // Claude Code needs an initial message to trigger SessionStart hook
+  setTimeout(() => {
+    try {
+      execFileSync('tmux', ['send-keys', '-t', TMUX_TARGET, '-l', 'start'], {
+        timeout: 10_000,
+      });
+      execFileSync('tmux', ['send-keys', '-t', TMUX_TARGET, 'Enter'], {
+        timeout: 10_000,
+      });
+    } catch { /* session may not be ready yet */ }
+  }, BOOT_DELAY * 1000);
 }
 
 function capturePane(lines = 50) {
