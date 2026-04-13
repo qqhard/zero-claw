@@ -18,6 +18,18 @@ allowed-tools:
 
 Interactive setup wizard. Guide the user step by step.
 
+## UX Rules
+
+**Always present choices as numbered options** so the user gets a clickable selection bar. Never ask open-ended questions when you can offer options. For example:
+
+- Language: "1. English  2. 中文  3. 日本語  4. Other (type it)"
+- Timezone: auto-detect first, then "1. Asia/Singapore (detected)  2. Other (type it)"
+- Assistant name: "1. Thoth — Egyptian god of knowledge  2. Athena — Greek goddess of wisdom  3. ..."
+- Working directory: "1. ~/thoth (recommended)  2. Custom path"
+- Confirmations: "1. Yes  2. No, let me change"
+
+When the user must paste something (bot token, user ID), ask for the paste directly — no options needed there.
+
 Plugin root is available as `$CLAUDE_PLUGIN_ROOT`.
 
 ## Steps
