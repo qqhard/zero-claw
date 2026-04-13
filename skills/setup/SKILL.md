@@ -80,9 +80,9 @@ Mark each task `in_progress` when starting it, `completed` when done.
    - Generate `ecosystem.config.cjs` with the collected values. Use `<assistant-name-lowercase>` as the `TMUX_SESSION` name and the **supervisor bot token**.
    - Generate `USER.md` with collected user info (preferred name, timezone, user_id, chat_id, brief intro). This is the assistant's reference for who the user is.
    - Copy `$CLAUDE_PLUGIN_ROOT/start.sh` → `start.sh`, make executable.
-   - Create `.claude/memory/MEMORY.md` (empty memory index).
-   - Create `.claude/memory/journal/` directory.
-   - Initialize git repo. Make sure `.claude/memory/` is **not** gitignored (it must persist across clones).
+   - Create `memory/MEMORY.md` (empty memory index).
+   - Create `journal/` directory.
+   - Initialize git repo. Make sure `memory/`, `journal/`, and `USER.md` are tracked.
 
 10. **Start supervisor**: Run `pm2 start ecosystem.config.cjs && pm2 save`.
 
@@ -93,17 +93,18 @@ Mark each task `in_progress` when starting it, `completed` when done.
     - Run code, read/write files, search the web — all via natural language
     - MCP tool integration (Gmail, Calendar, Notion, etc. — can be added later)
 
-    **Memory system** (`.claude/memory/`):
-    - Your assistant remembers things across sessions — preferences, context, feedback
-    - `MEMORY.md` is the index, individual memories are stored as markdown files
-    - `journal/` contains daily logs of what happened (maintained by heartbeat)
-    - All git-tracked so memory survives machine changes
+    **Memory system** (self-managed, git-tracked):
+    - `USER.md` — your profile, continuously updated as the assistant learns about you
+    - `journal/` — daily logs of what happened (written each heartbeat)
+    - `memory/` — long-term memory distilled from journals
+    - All in the project directory, git-tracked, portable across machines
 
-    **Heartbeat** (automatic):
+    **Heartbeat** (automatic, waking hours only):
     - Registered as a cron job on every session start
-    - Periodically sends an "online" status to Telegram
-    - Reviews conversations and writes notable events to the daily journal
-    - End of day: distills journal into long-term memory
+    - Only fires during your waking hours (no disturbance at night)
+    - Each hour: sends "online" status, records notable events to journal
+    - Last heartbeat of the day: distills journal into long-term memory, prunes stale entries
+    - Monday's last heartbeat: weekly review
 
     **Supervisor bot** — send `/help` to your supervisor bot to see all commands:
     - `/restart` — restart the assistant when it's stuck

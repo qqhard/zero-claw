@@ -1,6 +1,6 @@
 ---
 name: heartbeat
-description: "Periodic keep-alive and journaling. Called by CronCreate heartbeat job."
+description: "Periodic keep-alive and journaling. Called by CronCreate heartbeat job during waking hours."
 user-invocable: false
 allowed-tools:
   - Read
@@ -13,19 +13,32 @@ allowed-tools:
 
 # Heartbeat
 
-Periodic keep-alive and journaling skill.
+Periodic keep-alive, journaling, and memory consolidation.
 
-## Behavior
+## Every Heartbeat
 
 1. Send a brief online status to Telegram (plain text, no emoji)
 2. Review recent conversation for notable events
-3. Write events to `.claude/memory/journal/YYYY-MM-DD.md`
+3. Write events to `journal/YYYY-MM-DD.md`
 
-### Last heartbeat of the day
-- Distill journal entries into long-term memory files under `.claude/memory/`
+## Last Heartbeat of the Day
 
-### Monday's last heartbeat
-- Additionally do a weekly review across the week's journals
+Triggered at the final hour in the waking range:
+
+1. Review today's journal
+2. Distill important information:
+   - User preferences or feedback → update `USER.md`
+   - Patterns, lessons, outcomes → write to `memory/` files
+3. Update `memory/MEMORY.md` index
+4. Prune outdated or superseded memory files
+5. Keep `memory/MEMORY.md` under 200 lines
+
+## Monday's Last Heartbeat
+
+Additionally:
+1. Read the past week's journals
+2. Identify trends and recurring patterns
+3. Consolidate into long-term memory
 
 ## Journal Format
 
