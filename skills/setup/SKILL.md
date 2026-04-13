@@ -36,9 +36,14 @@ Plugin root is available as `$CLAUDE_PLUGIN_ROOT`.
    ```
    If not installed, tell the user to run `claude plugins install telegram` first, then re-run setup.
 
-4. **Supervisor bot token**: Ask the user to create a bot via [@BotFather](https://t.me/BotFather) and paste the token.
+4. **Supervisor bot token**: This bot is your remote control — it lets you restart, stop, and monitor the assistant from Telegram when the main bot is unresponsive. Ask the user to:
+   - Open [@BotFather](https://t.me/BotFather) on Telegram
+   - Create a new bot (`/newbot`)
+   - Suggest names like `MyName Supervisor`, `MyName Watchdog`, `MyName Control`; username like `myname_supervisor_bot`
+   - Paste the **entire BotFather response** here — no need to extract the token manually
+   - Parse the token from the pasted text yourself using regex: `/\d+:[A-Za-z0-9_-]{35,}/`
 
-5. **User ID**: Ask the user to message [@userinfobot](https://t.me/userinfobot) and paste their Telegram user_id.
+5. **User ID**: Ask the user to message [@userinfobot](https://t.me/userinfobot) on Telegram. They can paste the entire reply — extract the numeric `Id` field yourself.
 
 6. **User info**: Ask for name and timezone (e.g. `Asia/Singapore`).
 
