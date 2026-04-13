@@ -18,6 +18,8 @@ allowed-tools:
 
 Interactive setup wizard. Guide the user step by step.
 
+Plugin root is available as `$CLAUDE_PLUGIN_ROOT`.
+
 ## UX Rules
 
 **Always present choices as numbered options** so the user gets a clickable selection bar. Never ask open-ended questions when you can offer options. For example:
@@ -30,25 +32,22 @@ Interactive setup wizard. Guide the user step by step.
 
 When the user must paste something (bot token, user ID), ask for the paste directly — no options needed there.
 
-Plugin root is available as `$CLAUDE_PLUGIN_ROOT`.
-
 ## Steps
 
 **IMPORTANT — Do this FIRST before anything else:**
 
-Call TaskCreate 11 times to create all tasks. Do this immediately, before greeting the user or asking any questions:
+Call TaskCreate 10 times to create all tasks. Do this immediately, before greeting the user or asking any questions:
 
 - TaskCreate("Choose language")
 - TaskCreate("Check prerequisites (tmux, node, pm2)")
 - TaskCreate("Check Telegram plugin")
 - TaskCreate("Create two Telegram bots (main + supervisor)")
-- TaskCreate("Configure Telegram plugin")
 - TaskCreate("Get Telegram user ID")
 - TaskCreate("Collect user info (name, timezone, assistant name)")
 - TaskCreate("Choose working directory")
 - TaskCreate("Generate project files")
-- TaskCreate("Start supervisor")
-- TaskCreate("Introduction & launch")
+- TaskCreate("Start supervisor & launch")
+- TaskCreate("Pair Telegram")
 
 Then for each step below: TaskUpdate → `in_progress` when starting, `completed` when done.
 
@@ -74,25 +73,17 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    
    For each bot, tell the user to paste the **entire BotFather response** — parse the token yourself using regex: `/\d+:[A-Za-z0-9_-]{35,}/`. Clearly label which is which when confirming back.
 
-5. **Configure Telegram plugin**: Guide the user through the full pairing flow:
-   1. Run `/telegram:configure` — this saves the **main bot** token
-   2. Tell the user: "Now open Telegram and send any message to your main bot (@xxx_bot)"
-   3. The bot will reply with a 6-character pairing code
-   4. Tell the user to paste that code here
-   5. Run `/telegram:access pair <code>` to complete the pairing
-   6. Confirm success: "Your Telegram is now connected. Messages you send to @xxx_bot will reach this assistant."
+5. **User ID**: Ask the user to message [@userinfobot](https://t.me/userinfobot) on Telegram. They can paste the entire reply — extract the numeric `Id` field yourself.
 
-6. **User ID**: Ask the user to message [@userinfobot](https://t.me/userinfobot) on Telegram. They can paste the entire reply — extract the numeric `Id` field yourself.
-
-7. **User info**:
+6. **User info**:
    - **Preferred name**: Ask "How should your assistant address you?" — this is NOT their real name, it's what they want to be called (e.g. "Boss", "Captain", a nickname, a title, or just their first name). Auto-detect their real name from Telegram/system as a suggestion, but let them choose freely.
    - **Timezone**: Ask for timezone (e.g. `Asia/Singapore`). Try to auto-detect from system (`timedatectl` or `TZ` env) and offer as default.
    - **Brief intro** (optional): Ask if there's anything else the assistant should know — role, interests, work context. Keep it short, 1-2 sentences is fine. Can be skipped.
    - **Assistant name**: Ask the user to name their assistant. Suggest 3-5 names from mythology, folklore, or fiction — pick randomly from diverse cultures and pantheons each time (Greek, Norse, Egyptian, Hindu, Chinese, Japanese, Celtic, Mesopotamian, etc.). For each suggestion, give a one-line reason why the name fits an AI assistant (e.g. knowledge, wisdom, communication, protection). Let the user pick one or type their own.
 
-8. **Working directory**: Default to `~/<assistant-name-lowercase>` (e.g. if assistant is "Thoth", default `~/thoth`). Let the user confirm or change.
+7. **Working directory**: Default to `~/<assistant-name-lowercase>` (e.g. if assistant is "Thoth", default `~/thoth`). Present options: "1. <current dir> (current)  2. ~/<name> (recommended)  3. Custom path". Let the user confirm or change.
 
-9. **Generate files** in the working directory:
+8. **Generate files** in the working directory:
    - Copy `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md` → `CLAUDE.md`, fill in all placeholders (assistant name, user name, timezone, language).
    - Copy `$CLAUDE_PLUGIN_ROOT/supervisor/` → `supervisor/`, run `npm install`.
    - Generate `ecosystem.config.cjs` with the collected values. Use `<assistant-name-lowercase>` as the `TMUX_SESSION` name and the **supervisor bot token**.
@@ -102,36 +93,20 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    - Create `journal/` directory.
    - Initialize git repo. Make sure `memory/`, `journal/`, and `USER.md` are tracked.
 
-10. **Start supervisor**: Run `pm2 start ecosystem.config.cjs && pm2 save`.
+9. **Start supervisor & launch**: 
+   - Run `pm2 start ecosystem.config.cjs && pm2 save`.
+   - Give a brief tour of capabilities: memory system, heartbeat, supervisor `/help`.
+   - Tell the user to launch:
+     ```bash
+     tmux new-session -s <name> -c ~/<name> './start.sh'
+     ```
+     Detach: `Ctrl-b d`. Re-attach: `tmux attach -t <name>`.
 
-11. **Introduction & launch**: Before saying goodbye, give the user a brief tour of what their assistant can do:
-
-    **Core capabilities** (built-in):
-    - Chat via Telegram — send any message to the main bot
-    - Run code, read/write files, search the web — all via natural language
-    - MCP tool integration (Gmail, Calendar, Notion, etc. — can be added later)
-
-    **Memory system** (self-managed, git-tracked):
-    - `USER.md` — your profile, continuously updated as the assistant learns about you
-    - `journal/` — daily logs of what happened (written each heartbeat)
-    - `memory/` — long-term memory distilled from journals
-    - All in the project directory, git-tracked, portable across machines
-
-    **Heartbeat** (automatic, waking hours only):
-    - Registered as a cron job on every session start
-    - Only fires during your waking hours (no disturbance at night)
-    - Each hour: sends "online" status, records notable events to journal
-    - Last heartbeat of the day: distills journal into long-term memory, prunes stale entries
-    - Monday's last heartbeat: weekly review
-
-    **Supervisor bot** — send `/help` to your supervisor bot to see all commands:
-    - `/restart` — restart the assistant when it's stuck
-    - `/status` — check if it's running
-    - `/logs` / `/screen` — see what's on the terminal
-    - `/send <text>` — type into the assistant's terminal
-
-    **How to launch**:
-    ```bash
-    tmux new-session -s <name> -c ~/<name> './start.sh'
-    ```
-    Detach: `Ctrl-b d`. Re-attach: `tmux attach -t <name>`.
+10. **Pair Telegram**: This step happens **after the bot is running** inside tmux with `--channels plugin:telegram`. Guide the user:
+    1. Run `/telegram:configure` in the bot's Claude Code session — paste the **main bot** token
+    2. Open Telegram and send any message to the main bot
+    3. The bot replies with a 6-character pairing code
+    4. In the bot's session, run `/telegram:access pair <code>`
+    5. Confirm: "Your Telegram is now connected. Messages to @xxx_bot reach your assistant."
+    
+    Note: the user can also do this step later by attaching to the tmux session (`tmux attach -t <name>`).
