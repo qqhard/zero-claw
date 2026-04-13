@@ -93,20 +93,31 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    - Create `journal/` directory.
    - Initialize git repo. Make sure `memory/`, `journal/`, and `USER.md` are tracked.
 
-9. **Start supervisor & launch**: 
-   - Run `pm2 start ecosystem.config.cjs && pm2 save`.
-   - Give a brief tour of capabilities: memory system, heartbeat, supervisor `/help`.
-   - Tell the user to launch:
+9. **Launch bot in background**:
+   - Start supervisor: `pm2 start ecosystem.config.cjs && pm2 save`
+   - Create tmux session and start the bot in the background:
      ```bash
-     tmux new-session -s <name> -c ~/<name> './start.sh'
+     tmux new-session -d -s <name> -c <working-dir> './start.sh'
      ```
-     Detach: `Ctrl-b d`. Re-attach: `tmux attach -t <name>`.
+   - Wait ~10 seconds for Claude Code to initialize
+   - Configure Telegram plugin by sending the main bot token into the tmux session:
+     ```bash
+     tmux send-keys -t <name>:0.0 -l '/telegram:configure' && tmux send-keys -t <name>:0.0 Enter
+     ```
+     Wait a few seconds, then send the main bot token:
+     ```bash
+     tmux send-keys -t <name>:0.0 -l '<main-bot-token>' && tmux send-keys -t <name>:0.0 Enter
+     ```
+   - Tell the user: "Your bot is starting up. You can watch it with: `tmux attach -t <name>`"
 
-10. **Pair Telegram**: This step happens **after the bot is running** inside tmux with `--channels plugin:telegram`. Guide the user:
-    1. Run `/telegram:configure` in the bot's Claude Code session — paste the **main bot** token
-    2. Open Telegram and send any message to the main bot
-    3. The bot replies with a 6-character pairing code
-    4. In the bot's session, run `/telegram:access pair <code>`
-    5. Confirm: "Your Telegram is now connected. Messages to @xxx_bot reach your assistant."
-    
-    Note: the user can also do this step later by attaching to the tmux session (`tmux attach -t <name>`).
+10. **Pair Telegram**: Automate the pairing through tmux send-keys:
+    1. Tell the user: "Open Telegram and send any message to your main bot @xxx_bot"
+    2. The bot will reply with a 6-character pairing code
+    3. Ask the user to paste the code here
+    4. Send the pair command into the running bot session:
+       ```bash
+       tmux send-keys -t <name>:0.0 -l '/telegram:access pair <code>' && tmux send-keys -t <name>:0.0 Enter
+       ```
+    5. Confirm: "Paired! Messages you send to @xxx_bot now reach your assistant."
+    6. Give a brief tour: memory system, heartbeat, supervisor `/help`
+    7. Tell user: `tmux attach -t <name>` to watch, `Ctrl-b d` to detach
