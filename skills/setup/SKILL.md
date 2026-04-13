@@ -20,25 +20,25 @@ Interactive setup wizard. Guide the user step by step.
 
 Plugin root is available as `$CLAUDE_PLUGIN_ROOT`.
 
-## Before Starting
-
-Use TaskCreate to create **all** tasks upfront so the user sees the full picture:
-
-1. "Choose language"
-2. "Check prerequisites (tmux, node, pm2)"
-3. "Check Telegram plugin"
-4. "Create two Telegram bots (main + supervisor)"
-5. "Configure Telegram plugin"
-6. "Get Telegram user ID"
-7. "Collect user info (name, timezone, assistant name)"
-8. "Choose working directory"
-9. "Generate project files"
-10. "Start supervisor"
-11. "Introduction & launch"
-
-Mark each task `in_progress` when starting it, `completed` when done.
-
 ## Steps
+
+**IMPORTANT — Do this FIRST before anything else:**
+
+Call TaskCreate 11 times to create all tasks. Do this immediately, before greeting the user or asking any questions:
+
+- TaskCreate("Choose language")
+- TaskCreate("Check prerequisites (tmux, node, pm2)")
+- TaskCreate("Check Telegram plugin")
+- TaskCreate("Create two Telegram bots (main + supervisor)")
+- TaskCreate("Configure Telegram plugin")
+- TaskCreate("Get Telegram user ID")
+- TaskCreate("Collect user info (name, timezone, assistant name)")
+- TaskCreate("Choose working directory")
+- TaskCreate("Generate project files")
+- TaskCreate("Start supervisor")
+- TaskCreate("Introduction & launch")
+
+Then for each step below: TaskUpdate → `in_progress` when starting, `completed` when done.
 
 1. **Language**: Ask the user's preferred language. Continue in that language.
 
