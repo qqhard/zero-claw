@@ -58,8 +58,9 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    tmux --version
    node --version
    pm2 --version
+   bun --version
    ```
-   If anything is missing, tell the user what to install and stop.
+   If anything is missing, offer to install it (e.g. `npm install -g pm2`, `curl -fsSL https://bun.sh/install | bash`). Only stop if installation fails.
 
 3. **Telegram plugin**: Check if the Telegram plugin is installed:
    ```bash

@@ -52,7 +52,9 @@ Supervisor Bot ---- Node.js + pm2
 ### Prerequisites
 
 - [Claude Code](https://claude.ai/claude-code) subscription
-- [tmux](https://github.com/tmux/tmux), [Node.js](https://nodejs.org/) >= 18, [pm2](https://pm2.keymetrics.io/)
+- [bun](https://bun.sh/) (required by the Telegram plugin)
+
+Other dependencies (tmux, Node.js, pm2) will be checked and installed during setup.
 
 ### Install
 
