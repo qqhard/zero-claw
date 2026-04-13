@@ -69,12 +69,12 @@ Mark each task `in_progress` when starting it, `completed` when done.
    - **Timezone**: Ask for timezone (e.g. `Asia/Singapore`). Try to auto-detect from system (`timedatectl` or `TZ` env) and offer as default.
    - **Assistant name**: Ask the user to name their assistant. Suggest 3-5 names from mythology, folklore, or fiction — pick randomly from diverse cultures and pantheons each time (Greek, Norse, Egyptian, Hindu, Chinese, Japanese, Celtic, Mesopotamian, etc.). For each suggestion, give a one-line reason why the name fits an AI assistant (e.g. knowledge, wisdom, communication, protection). Let the user pick one or type their own.
 
-7. **Working directory**: Ask where to set up the bot project (default: `~/zero-claw-bot`). Create the directory.
+7. **Working directory**: Default to `~/<assistant-name-lowercase>` (e.g. if assistant is "Thoth", default `~/thoth`). Let the user confirm or change.
 
 8. **Generate files** in the working directory:
-   - Copy `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md` → `CLAUDE.md`, fill in user info and language.
+   - Copy `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md` → `CLAUDE.md`, fill in all placeholders (assistant name, user name, timezone, language).
    - Copy `$CLAUDE_PLUGIN_ROOT/supervisor/` → `supervisor/`, run `npm install`.
-   - Generate `ecosystem.config.cjs` with the collected values.
+   - Generate `ecosystem.config.cjs` with the collected values. Use `<assistant-name-lowercase>` as the `TMUX_SESSION` name.
    - Copy `$CLAUDE_PLUGIN_ROOT/start.sh` → `start.sh`, make executable.
    - Create `memory/MEMORY.md` (empty).
    - Create `memory/journal/` directory.
@@ -82,9 +82,9 @@ Mark each task `in_progress` when starting it, `completed` when done.
 
 9. **Start supervisor**: Run `pm2 start ecosystem.config.cjs && pm2 save`.
 
-10. **Summary**: Tell the user everything is ready. Show how to launch:
+10. **Summary**: Tell the user everything is ready. Show how to launch (using assistant name as tmux session):
     ```bash
-    tmux new-session -d -s bot -c ~/zero-claw-bot
-    tmux send-keys -t bot:0.0 './start.sh' Enter
+    tmux new-session -d -s <assistant-name-lowercase> -c ~/<assistant-name-lowercase>
+    tmux send-keys -t <assistant-name-lowercase>:0.0 './start.sh' Enter
     ```
     And how to control via supervisor bot: `/status`, `/restart`, etc.
