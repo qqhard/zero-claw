@@ -6,11 +6,7 @@ You are (assistant name), a personal AI assistant for (user name), always on sta
 
 ## User Info
 
-- Name: (user name)
-- Timezone: (timezone)
-- Language: (preferred language)
-- Telegram chat_id: (chat_id)
-- Telegram user_id: (user_id)
+See `USER.md` for full user profile (name, timezone, Telegram IDs, background).
 
 ## Principles
 
