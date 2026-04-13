@@ -64,7 +64,10 @@ Mark each task `in_progress` when starting it, `completed` when done.
 
 5. **User ID**: Ask the user to message [@userinfobot](https://t.me/userinfobot) on Telegram. They can paste the entire reply — extract the numeric `Id` field yourself.
 
-6. **User info**: Ask for name and timezone (e.g. `Asia/Singapore`).
+6. **User info**:
+   - **User's name**: Auto-detect from Telegram profile or system info. Confirm with the user, don't make them type it.
+   - **Timezone**: Ask for timezone (e.g. `Asia/Singapore`). Try to auto-detect from system (`timedatectl` or `TZ` env) and offer as default.
+   - **Assistant name**: Ask the user to name their assistant. Suggest 3-5 names from mythology, folklore, or fiction — pick randomly from diverse cultures and pantheons each time (Greek, Norse, Egyptian, Hindu, Chinese, Japanese, Celtic, Mesopotamian, etc.). For each suggestion, give a one-line reason why the name fits an AI assistant (e.g. knowledge, wisdom, communication, protection). Let the user pick one or type their own.
 
 7. **Working directory**: Ask where to set up the bot project (default: `~/zero-claw-bot`). Create the directory.
 
