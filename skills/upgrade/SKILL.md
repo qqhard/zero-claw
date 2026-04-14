@@ -102,7 +102,9 @@ Components to check:
 
 **a) Supervisor (`supervisor/index.mjs`)** — check for: multi-bot support, watchdog, /screen, /send, BOTS env parsing. Check `supervisor/package.json` dependencies.
 
-**b) ecosystem.config.cjs** — check format: BOTS env var? Legacy single-bot vars? Missing env vars (WATCHDOG_INTERVAL, BOOT_DELAY)?
+**b) ecosystem.config.cjs** — check format: BOTS env var? Legacy single-bot vars? Missing env vars (WATCHDOG_INTERVAL, BOOT_DELAY)? Also check the pm2 app name: if it's just `supervisor` (generic), it should be renamed to `<assistant-name>-supervisor` to avoid collisions with other Zero-Claw projects on the same machine.
+
+**b2) pm2 collision check** — run `pm2 jlist` and check if there's already a process named `supervisor` (or the same name). Compare its `cwd` with the current project root. If it belongs to a DIFFERENT project, warn the user and do NOT restart it. Only restart the supervisor that belongs to THIS project (matched by cwd).
 
 **c) Bot CLAUDE.md** (for each bot) — check for key sections: Heartbeat, Memory System, Cron Tasks, Journal Format. **Do NOT compare personality/role/principles** — those are user customizations.
 
@@ -143,14 +145,14 @@ For each component that needs upgrading, follow this pattern:
 - "Show diff" — display key differences before deciding
 - "Skip"
 
-After applying: `cd supervisor && npm install`. If pm2 is running supervisor, `pm2 restart supervisor`.
+After applying: `cd supervisor && npm install`. For pm2 restart, use the project-specific name (see ecosystem.config.cjs), NOT a generic `pm2 restart supervisor`. Verify the pm2 process cwd matches this project before restarting.
 
 **ecosystem.config.cjs** (if outdated):
 - "Migrate to new format" — preserve tokens and user IDs, add BOTS env var
 - "Show diff" — show old vs new config
 - "Skip"
 
-Preserve any custom env vars the user added.
+Preserve any custom env vars the user added. **Rename pm2 app name** from generic `supervisor` to `<assistant-name>-supervisor` if it's still the generic name. Warn the user that pm2 will see this as a new process — they may need to `pm2 delete supervisor && pm2 start ecosystem.config.cjs && pm2 save`.
 
 **Bot CLAUDE.md** (if missing sections — this is the tricky one):
 - "Add missing sections" — inject new sections (Heartbeat, Memory System, etc.) without touching existing content
