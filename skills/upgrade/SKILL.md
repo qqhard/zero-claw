@@ -22,169 +22,114 @@ Plugin root is available as `$CLAUDE_PLUGIN_ROOT`. The canonical latest versions
 
 ## UX Rules
 
-Always present choices as numbered options. Show diffs or summaries before applying changes. Never overwrite user customizations without confirmation.
+- **One component at a time**: diagnose → show findings → ask → apply → next. Don't batch all decisions into one wall of text.
+- **Use AskUserQuestion for every decision**: each component gets its own question with options. Never dump a multi-component plan and ask the user to pick from a list.
+- **Use TaskCreate per component**: each upgradeable component is its own task, so the user sees progress as you go.
+- **Show before asking**: before presenting upgrade options, briefly explain what's different (2-3 lines max). If the user wants details, offer "Show diff" as an option.
+- **Backup before modify**: copy to `<file>.bak.<timestamp>` before any change.
 
 ## Steps
 
-**IMPORTANT — Create tasks first:**
+### Phase 0: Language
 
-- TaskCreate("Detect project layout")
-- TaskCreate("Diagnose components")
-- TaskCreate("Plan upgrades")
-- TaskCreate("Apply upgrades")
-- TaskCreate("Verify")
+Use AskUserQuestion to ask the user's preferred language. Continue the entire upgrade process in that language.
 
-### 1. Detect project layout
+### Phase 1: Detect
 
 Find the project root. Look for these signals in the current directory and parents:
 
 - `ecosystem.config.cjs` — supervisor config
 - `supervisor/` or `supervisor/index.mjs` — supervisor code
 - Bot directories containing `CLAUDE.md` + `start.sh`
-- `package.json` with zero-claw references
 - `.claude/` or `memory/` or `journal/` directories
 
-If nothing is found, ask the user to point to their project directory.
+If nothing is found, use AskUserQuestion to ask the user to point to their project directory.
 
 Parse `ecosystem.config.cjs` (or equivalent) to discover:
 - Supervisor bot token (present or not)
 - BOTS entries → list of bot names, sessions, work dirs
 - Any legacy env vars (TMUX_SESSION, WORK_DIR — pre-multi-bot format)
 
-Build a **project map**:
-```
-parent/
-├── ecosystem.config.cjs   ✓/✗
-├── supervisor/             ✓/✗  (version or "unknown")
-├── bot-a/                  ✓    (has CLAUDE.md, start.sh, memory/, journal/)
-├── bot-b/                  ✓
-└── ...
-```
-
-### 2. Diagnose components
+### Phase 2: Diagnose all components
 
 For each component, compare against the canonical version in `$CLAUDE_PLUGIN_ROOT` and classify as:
 
-- **Up to date** — matches or functionally equivalent
-- **Outdated** — older version, missing features
-- **Custom/unknown** — user-modified or hand-rolled, can't auto-upgrade
-- **Missing** — component doesn't exist yet
+- **Up to date** — matches or functionally equivalent → skip, no task needed
+- **Outdated** — older version, missing features → needs upgrade task
+- **Custom/unknown** — user-modified or hand-rolled → needs upgrade task with careful handling
+- **Missing** — component doesn't exist yet → needs upgrade task
 
-#### Components to check:
+Components to check:
 
-**a) Supervisor (`supervisor/index.mjs`)**
-- Compare against `$CLAUDE_PLUGIN_ROOT/supervisor/index.mjs`
-- Check for: multi-bot support, watchdog, /screen command, /send command, BOTS env parsing
-- Check `supervisor/package.json` dependencies (telegraf version)
+**a) Supervisor (`supervisor/index.mjs`)** — check for: multi-bot support, watchdog, /screen, /send, BOTS env parsing. Check `supervisor/package.json` dependencies.
 
-**b) ecosystem.config.cjs**
-- Check format: does it use the BOTS env var? Legacy single-bot vars?
-- Check for missing env vars (WATCHDOG_INTERVAL, BOOT_DELAY, etc.)
+**b) ecosystem.config.cjs** — check format: BOTS env var? Legacy single-bot vars? Missing env vars (WATCHDOG_INTERVAL, BOOT_DELAY)?
 
-**c) Bot CLAUDE.md** (for each bot directory)
-- Check for key sections: Heartbeat, Memory System, Cron Tasks, Journal Format
-- Check heartbeat config: does it use CronCreate? Manual cron? No heartbeat at all?
-- Check memory config: uses built-in auto-memory, custom memory/, or nothing?
-- **Do NOT compare personality/role/principles** — those are user customizations
+**c) Bot CLAUDE.md** (for each bot) — check for key sections: Heartbeat, Memory System, Cron Tasks, Journal Format. **Do NOT compare personality/role/principles** — those are user customizations.
 
-**d) start.sh** (for each bot)
-- Check for: TELEGRAM_STATE_DIR export, --project-dir flag, --dangerously-skip-permissions
-- Compare against `$CLAUDE_PLUGIN_ROOT/start.sh`
+**d) start.sh** (for each bot) — check for: TELEGRAM_STATE_DIR export, --project-dir flag.
 
-**e) Skills**
-- Check if bot directories have `.claude/skills/` with heartbeat skill
-- Compare against `$CLAUDE_PLUGIN_ROOT/skills/heartbeat/SKILL.md`
+**e) Skills** — check if bot directories have `.claude/skills/heartbeat/`.
 
-**f) Memory/Journal structure**
-- Check if `memory/MEMORY.md`, `journal/` exist
-- Check if USER.md exists
+**f) Memory/Journal structure** — check if `memory/MEMORY.md`, `journal/`, `USER.md` exist.
 
-Present the diagnosis as a table:
+After diagnosis, show a summary table of all components and their status. Then proceed to Phase 3 — one component at a time.
 
-```
-Component          Status       Details
-─────────────────────────────────────────
-supervisor         outdated     missing /screen, /send commands
-ecosystem.config   outdated     uses legacy single-bot format
-thoth/CLAUDE.md    outdated     missing heartbeat section
-thoth/start.sh     outdated     missing TELEGRAM_STATE_DIR
-thoth/skills       missing      no heartbeat skill
-thoth/memory       ok           memory/ and journal/ present
-```
+### Phase 3: Upgrade each component
 
-### 3. Plan upgrades
+**IMPORTANT**: Create a TaskCreate for each component that needs upgrading. Only create tasks for components that are NOT up to date. Process them one at a time: TaskUpdate → `in_progress`, ask, apply, TaskUpdate → `completed`, then move to next.
 
-For each outdated or missing component, present upgrade options:
+For each component that needs upgrading, follow this pattern:
+
+1. **TaskUpdate** → `in_progress`
+2. **Explain** what's different (2-3 lines, concise)
+3. **AskUserQuestion** with component-specific options (see below)
+4. **Apply** the user's choice (backup first if modifying)
+5. **TaskUpdate** → `completed`
+
+#### Component-specific options:
 
 **Supervisor** (if outdated/missing):
-- "Replace with latest" — overwrites `supervisor/index.mjs` entirely (safe because supervisor has no user customization)
+- "Replace with latest" — safe, no user customization in supervisor code
+- "Show diff" — display key differences before deciding
 - "Skip"
+
+After applying: `cd supervisor && npm install`. If pm2 is running supervisor, `pm2 restart supervisor`.
 
 **ecosystem.config.cjs** (if outdated):
-- "Migrate to new format" — preserve tokens and user IDs, restructure to BOTS format
+- "Migrate to new format" — preserve tokens and user IDs, add BOTS env var
+- "Show diff" — show old vs new config
 - "Skip"
 
-**Bot CLAUDE.md** (if outdated — this is the tricky one):
-- Show exactly which sections are missing or outdated (e.g. "Missing: Heartbeat section, Memory System section")
-- "Add missing sections" — inject new sections without touching existing content
-- "Show diff" — display what would be added, let user approve line by line
+Preserve any custom env vars the user added.
+
+**Bot CLAUDE.md** (if missing sections — this is the tricky one):
+- "Add missing sections" — inject new sections (Heartbeat, Memory System, etc.) without touching existing content
+- "Show what will be added" — display the sections to be injected
 - "Skip"
 - **NEVER overwrite the entire CLAUDE.md** — it contains personality and user customizations
 
+Fill placeholders using info from USER.md or existing CLAUDE.md.
+
 **start.sh** (if outdated):
 - "Replace with latest" — it's a one-liner, safe to overwrite
+- "Show diff"
 - "Skip"
 
 **Skills** (if missing):
 - "Install heartbeat skill" — copy to `.claude/skills/heartbeat/`
 - "Skip"
 
-**Memory structure** (if missing):
-- "Create memory/MEMORY.md and journal/" — non-destructive
+**Memory/Journal** (if missing):
+- "Create structure" — create `memory/MEMORY.md`, `journal/`, `USER.md` (non-destructive, never overwrites existing files)
 - "Skip"
 
-Ask the user to confirm the upgrade plan. Show everything that will change.
+### Phase 4: Verify
 
-### 4. Apply upgrades
+After all component tasks are done:
 
-For each approved upgrade:
-
-1. **Backup first**: Before modifying any file, copy it to `<file>.bak.<timestamp>`. Announce the backup path.
-2. Apply the change
-3. Mark task complete
-
-Specific upgrade procedures:
-
-**Supervisor replacement:**
-```bash
-cp -r $CLAUDE_PLUGIN_ROOT/supervisor/ supervisor/
-cd supervisor && npm install
-pm2 restart supervisor  # if running
-```
-
-**ecosystem.config.cjs migration:**
-- Read old config, extract tokens, user IDs, bot paths
-- Generate new format using BOTS env var
-- Preserve any custom env vars the user added
-
-**CLAUDE.md section injection:**
-- Read the canonical template from `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md`
-- Extract only the missing sections (Heartbeat, Memory System, etc.)
-- Append or insert at appropriate locations in the existing file
-- Fill in placeholders using info from USER.md or existing CLAUDE.md
-
-**start.sh replacement:**
-- Copy from `$CLAUDE_PLUGIN_ROOT/start.sh`, make executable
-
-**Skills installation:**
-- Create `.claude/skills/heartbeat/` in bot directory
-- Copy SKILL.md from plugin root
-
-### 5. Verify
-
-After all upgrades:
-1. If supervisor was upgraded and is managed by pm2: `pm2 restart supervisor`, check it starts cleanly
-2. For each upgraded bot: check that CLAUDE.md parses correctly (no broken markdown), start.sh is executable
-3. Summarize what was done
-4. Remind user to restart their bots: `tmux send-keys -t <name>:0.0 '/exit' Enter` then re-run start.sh, or use supervisor `/restart`
-5. Clean up .bak files? Ask user: "Keep backups or delete them?"
+1. If supervisor was upgraded and managed by pm2: verify it starts cleanly
+2. For each upgraded bot: check CLAUDE.md has no broken markdown, start.sh is executable
+3. Summarize what was done (one line per component)
+4. Remind user to restart bots: supervisor `/restart` or `tmux send-keys`
+5. AskUserQuestion: "Keep backup files (.bak) or delete them?"
