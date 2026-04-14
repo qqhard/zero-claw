@@ -43,7 +43,13 @@ Plugin root is available as `$CLAUDE_PLUGIN_ROOT`. The canonical latest versions
 
 ### Phase 0: Language
 
-Use AskUserQuestion to ask the user's preferred language. Continue the entire upgrade process in that language.
+Use AskUserQuestion: "What language should we use? / 使用什么语言？"
+- English
+- 中文
+- 日本語 (or another suggested language based on system locale)
+- (Other — user types their own)
+
+Continue the entire upgrade process in that language.
 
 ### Phase 1: Detect
 

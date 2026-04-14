@@ -54,7 +54,13 @@ Call TaskCreate 11 times to create all tasks. Do this immediately, before greeti
 
 Then for each step below: TaskUpdate → `in_progress` when starting, `completed` when done.
 
-1. **Language**: Ask the user's preferred language. Continue in that language.
+1. **Language**: Use AskUserQuestion: "What language should we use? / 使用什么语言？"
+   - English
+   - 中文
+   - 日本語 (or another suggested language based on system locale)
+   - (Other — user types their own)
+   
+   Continue in that language.
 
 2. **Prerequisites**: Check installed tools:
    ```bash
