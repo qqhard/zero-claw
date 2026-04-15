@@ -151,34 +151,33 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    - If `.zero-claw-setup.json` exists in cwd, delete it — setup state is no longer needed.
 
 11. **Launch bot in background**:
-    - Start supervisor: `pm2 start ecosystem.config.cjs && pm2 save` (the pm2 name will be `<assistant-name>-supervisor`)
+    - Start supervisor: `pm2 start ecosystem.config.cjs && pm2 save` (the pm2 name will be `<dirname>-supervisor`).
+    - **Write the Telegram token directly to the bot's local state dir** — do NOT use `/telegram:configure` via send-keys. That skill hardcodes `~/.claude/channels/telegram/.env` and the bot's plugin server reads from `<bot-dir>/.telegram/` (because `start.sh` exports `TELEGRAM_STATE_DIR`). Write the file before launching the bot:
+      ```bash
+      mkdir -p <bot-dir>/.telegram
+      printf 'TELEGRAM_BOT_TOKEN=%s\n' "<main-bot-token>" > <bot-dir>/.telegram/.env
+      chmod 600 <bot-dir>/.telegram/.env
+      ```
     - Create tmux session and start the bot in the background:
       ```bash
       tmux new-session -d -s <name> -c <working-dir> './start.sh'
       ```
-    - Wait ~15 seconds for Claude Code to initialize
-    - Send "start" to trigger SessionStart hook (registers heartbeat and cron tasks):
+    - Wait ~15 seconds for Claude Code to initialize, then send "start" to trigger SessionStart hook (registers heartbeat and cron tasks):
       ```bash
       tmux send-keys -t <name>:0.0 -l 'start' && tmux send-keys -t <name>:0.0 Enter
       ```
-    - Wait a few seconds, then configure Telegram plugin:
-      ```bash
-      tmux send-keys -t <name>:0.0 -l '/telegram:configure' && tmux send-keys -t <name>:0.0 Enter
-      ```
-    - Wait a few seconds, then send the main bot token:
-      ```bash
-      tmux send-keys -t <name>:0.0 -l '<main-bot-token>' && tmux send-keys -t <name>:0.0 Enter
-      ```
     - Tell the user: "Your bot is starting up. You can watch it with: `tmux attach -t <name>`"
 
-12. **Pair Telegram**:
-    1. Tell the user: "Open Telegram and send any message (e.g. 'hello') to your main bot @xxx_bot"
-    2. Wait for the user to confirm. Two possible outcomes:
-       - **Bot replies normally** → already paired, no further action needed
-       - **Bot replies with a 6-char pairing code** → ask the user to paste the code, then send into the bot session:
-         ```bash
-         tmux send-keys -t <name>:0.0 -l '/telegram:access pair <code>' && tmux send-keys -t <name>:0.0 Enter
-         ```
-    3. Confirm: "Your assistant is live! Messages to @xxx_bot now reach it."
-    4. Give a brief tour: memory system, heartbeat, supervisor `/help`
-    5. Tell user: `tmux attach -t <name>` to watch, `Ctrl-b d` to detach
+12. **Pair Telegram** — **the pairing step waits for a HUMAN, not for the bot.** The bot sits silently waiting for a Telegram DM; there is no progress signal to poll. Do not background-poll the tmux pane.
+
+    1. Say to the user **explicitly**:
+       > "Open Telegram and DM **@<main-bot-username>** with any message (e.g. 'hi'). The bot will reply with a 6-character pairing code. **Paste that code back here.** I'm waiting for you, not for the bot — until you paste the code, nothing will happen on my end."
+    2. When the user pastes the code, **edit `<bot-dir>/.telegram/access.json` directly** — do NOT shell out to `/telegram:access` (it has the same hardcoded-path bug). Use Read+Write:
+       - Find the pending entry whose code matches the pasted one
+       - Move its `user_id` (and display name) into `allowed`
+       - Remove it from `pending`
+       - Optionally flip `dmPolicy` to `allowlist` once the user confirms no one else needs in
+    3. Ask the user to send another Telegram message to confirm the bot replies normally.
+    4. Confirm: "Your assistant is live! Messages to @<main-bot-username> now reach it."
+    5. Give a brief tour: memory system, heartbeat, supervisor `/help`.
+    6. Tell user: `tmux attach -t <name>` to watch, `Ctrl-b d` to detach.

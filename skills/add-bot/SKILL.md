@@ -75,19 +75,54 @@ Always present choices as numbered options for the selection bar.
 
 6. **Generate files** in `<parent>/<agent-name-lowercase>/`:
    - Copy `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md` → `CLAUDE.md`, fill in agent name, user info (reuse `USER.md` from sibling bot), and the **core responsibility, personality paragraph, notes from user** from step 5.
-   - Symlink or copy `USER.md` from the first bot (single source of truth for user profile).
-   - Copy `$CLAUDE_PLUGIN_ROOT/start.sh` → `start.sh`, make executable.
+   - **USER.md** — ask the user via AskUserQuestion: "How should USER.md be shared with the sibling bot?"
+     1. **Copy** (default, safer) — independent file; edits to one bot won't leak into the other.
+     2. **Symlink** — single source of truth; both bots see the same file. Pick this only if you want changes to propagate.
+   - Copy `$CLAUDE_PLUGIN_ROOT/start.sh` → `start.sh`, make executable. **Verify** the copied file does NOT contain `--project-dir` (older versions had this invalid flag).
    - Create `memory/MEMORY.md`, `journal/`.
    - Initialize git repo.
 
-7. **Register with supervisor**: Add the new bot to the parent's `ecosystem.config.cjs` — add a new entry in the apps array with the new bot's tmux session name. Restart supervisor: `pm2 restart supervisor`.
+7. **Register with supervisor**: Add the new bot to the parent's `ecosystem.config.cjs` — append to the `BOTS` env string as `<name>:<name>:<bot-dir>` (comma-separated). Then:
+   - **Detect the supervisor's pm2 app name** — read the `name:` field from `ecosystem.config.cjs` (it should be `<dirname>-supervisor`). Run `pm2 describe <name>` to check it's actually registered.
+   - If `pm2 describe` exits non-zero (not registered), tell the user: *"The supervisor isn't running under pm2 yet. Start it with `pm2 start ecosystem.config.cjs && pm2 save` from `<parent-dir>`, or run it under tmux directly."* — do NOT try `pm2 restart` blindly; it will silently no-op against a different project's supervisor.
+   - If registered, run `pm2 restart <name>` so the new `BOTS` entry takes effect.
 
-8. **Launch and pair**:
-   - Start the bot: `tmux new-session -d -s <name> -c <bot-dir> './start.sh'`
-   - Wait for init, send "start" via send-keys
-   - Configure Telegram plugin with the new bot's token via send-keys
-   - Guide user to DM the new bot for pairing
-   - Confirm success
+8. **Launch and pair** — **read this carefully: the pairing step waits for a HUMAN, not for the bot.** The bot will sit silently waiting for the user to DM it; there is no progress signal to poll, so do not background-poll the tmux pane.
+
+   a. **Start the bot in background**:
+      ```bash
+      tmux new-session -d -s <name> -c <bot-dir> './start.sh'
+      ```
+      Wait ~15s for Claude Code to finish booting, then send `start` to fire the SessionStart hook:
+      ```bash
+      tmux send-keys -t <name>:0.0 -l 'start' && tmux send-keys -t <name>:0.0 Enter
+      ```
+
+   b. **Write the Telegram token directly** — do NOT use `/telegram:configure` via send-keys. That skill hardcodes `~/.claude/channels/telegram/.env` and ignores `TELEGRAM_STATE_DIR`, so it would clobber the sibling bot's global config and the new bot's server (which reads from `<bot-dir>/.telegram/`) would still see no token. Instead, write directly:
+      ```bash
+      mkdir -p <bot-dir>/.telegram
+      printf 'TELEGRAM_BOT_TOKEN=%s\n' "<new-bot-token>" > <bot-dir>/.telegram/.env
+      chmod 600 <bot-dir>/.telegram/.env
+      ```
+      The bot's `start.sh` exports `TELEGRAM_STATE_DIR="$(pwd)/.telegram"`, so the plugin server picks this up automatically. Restart the bot session so the new env is loaded:
+      ```bash
+      tmux send-keys -t <name>:0.0 'C-c' && sleep 1 && tmux send-keys -t <name>:0.0 -l './start.sh' && tmux send-keys -t <name>:0.0 Enter
+      ```
+
+   c. **Wait for the user to pair (NOT the bot)** — say to the user **explicitly**:
+      > "Open Telegram and DM **@<new-bot-username>**. The bot will reply with a 6-character pairing code. **Paste that code back here.** I'm waiting for you, not for the bot — until you paste the code, nothing will happen on my end."
+      Do not background-poll. Do not run `until grep ...; do sleep; done`. Just wait for the user's next message.
+
+   d. **Approve the pairing by editing `access.json` directly** — also bypass `/telegram:access` (same hardcoded-path bug). When the user pastes the code, look it up and add their user_id to the allowlist:
+      ```bash
+      # Read pending pairings from <bot-dir>/.telegram/access.json
+      # Find the entry matching the pasted code → grab its user_id and display name
+      # Move that user into "allowed" and remove from "pending"
+      # Optionally flip dmPolicy to "allowlist" once the user confirms nobody else needs in
+      ```
+      Use Read+Write on `<bot-dir>/.telegram/access.json` (don't shell-out to a non-existent skill).
+
+   e. **Confirm success** — ask the user to send another message (e.g. "hi"). When they confirm the bot replied normally, you're done.
 
 Show the user how to manage multiple bots:
 - `tmux attach -t <name>` to watch any bot
