@@ -102,6 +102,14 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
 
    Based on these answers, draft a 2-4 sentence **Personality** paragraph that ties together the name's cultural/mythological background, chosen tone, and user's notes. Show the draft and ask "1. Looks good  2. Let me tweak it". Save the final three pieces (core responsibility, personality paragraph, user notes) — they'll be written into CLAUDE.md at generation time.
 
+   Then collect **Identity card** fields for `IDENTITY.md` (quick, one shot each):
+   - **Creature** — what kind of being are they? Offer options seeded by the name (e.g. for Thoth: "digital scribe", "archive keeper", "AI librarian"; for Loki: "trickster in the wires", "shapeshifting daemon"). Include "Other — type your own".
+   - **Vibe tags** — 2-3 short adjectives that match the Personality paragraph (e.g. "pragmatic, terse, occasionally witty"). Offer 3-4 presets based on their personality choice + "Other".
+   - **Emoji** — signature emoji. Suggest 3-4 that fit the name/creature (e.g. Thoth: 📜 🦩 🪶; Loki: 🦊 🔥 🪞). Include "Other".
+   - **Avatar** — skip by default; ask only if the user volunteers a path or URL.
+
+   Save all fields for file generation.
+
 6. **Create two Telegram bots**: You need two bots. Explain why:
    - **Main bot** — your assistant's face, for daily conversation.
    - **Supervisor bot** — remote control for when the main bot is unresponsive. Lets you restart, check status, view logs.
@@ -142,7 +150,10 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    - Generate `ecosystem.config.cjs` with supervisor bot token, user_id, and `BOTS` set to `"<name>:<name>:<cwd>/<name>"`. **The pm2 app name MUST be `<dirname>-supervisor`** where `<dirname>` is the project root directory name (e.g. if cwd is `/home/user/my-project`, use `my-project-supervisor`). Do NOT use the assistant name — a project can have multiple bots but only one supervisor. Before finalizing, run `pm2 jlist` to check for name collisions; if the name is taken, append a suffix or ask the user.
    
    In the **bot directory** (`<cwd>/<name>/`):
-   - Copy `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md` → `CLAUDE.md`, fill in all placeholders (assistant name, user name, timezone, language, **core responsibility, personality paragraph, notes from user** from step 5).
+   - Copy `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md` → `CLAUDE.md`, fill in placeholders (assistant name, user name, timezone, language, **core responsibility** from step 5). Personality and user notes go into `SOUL.md`, not here.
+   - Copy `$CLAUDE_PLUGIN_ROOT/template/IDENTITY.md` → `IDENTITY.md`, fill in name, creature, vibe, emoji, and avatar (leave avatar blank if not provided).
+   - Copy `$CLAUDE_PLUGIN_ROOT/template/SOUL.md` → `SOUL.md`, replace the top `(personality paragraph ...)` placeholder with the drafted personality from step 5, and replace the `(anything else ...)` placeholder under *Notes from the User* with the free-form notes. Keep the Core Truths and Boundaries sections as-is (they're the baseline — user can edit later).
+   - Copy `$CLAUDE_PLUGIN_ROOT/template/HEARTBEAT.md` → `HEARTBEAT.md` as-is. The agent will edit it over time.
    - Generate `USER.md` with collected user info (preferred name, timezone, user_id, chat_id, brief intro).
    - Copy `$CLAUDE_PLUGIN_ROOT/start.sh` → `start.sh`, make executable.
    - Create `memory/MEMORY.md` (empty memory index).
