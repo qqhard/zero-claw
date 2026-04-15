@@ -105,11 +105,10 @@ USER.md           # User profile (continuously updated)
 
 ## Self-Evolution
 
-Once a day (at the last heartbeat) the `evolve` skill runs autonomously and may:
+Once a day (at the last heartbeat) the `evolve` skill runs autonomously. Two forces:
 
-- **Add**: create new skills or tweak `SOUL.md` when it sees strong signals in journals
-- **Grind**: simplify one self-owned skill by a small step (≤20 lines of diff)
-- **Forget**: prune a couple of redundant `memory/` entries
+- **Add** (signal-triggered, no budget): when patterns recur in the journal, create a new self-skill, tweak `SOUL.md`, or write a memory entry.
+- **Forget** (time-triggered, small daily budget): remove what no longer earns its place — redundant sections inside self-skills, stale phrases in SOUL, superseded memory entries. Same principle, different objects.
 
 **Scope guarantee** — evolve never touches `USER.md`, `IDENTITY.md`, `CLAUDE.md`, or `journal/`. It only modifies `SOUL.md`, `memory/`, and skills listed in `.claude/skills/.self-skills` (plugin-provided skills like `heartbeat` and `evolve` itself are off-limits).
 

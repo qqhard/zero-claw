@@ -1,6 +1,6 @@
 ---
 name: evolve
-description: "Daily self-evolution: add/modify skills and SOUL based on observed patterns, simplify one self-owned skill by one step, forget a few redundant memory entries. Triggered by heartbeat's last-of-day run, or manually via 'evolve' / 'self-review'."
+description: "Daily self-evolution: add skills/SOUL when patterns emerge, forget what no longer earns its place (both inside skills and in memory). Triggered by heartbeat's last-of-day run, or manually via 'evolve' / 'self-review'."
 user-invocable: true
 allowed-tools:
   - Read
@@ -15,13 +15,14 @@ allowed-tools:
 
 Autonomous daily self-compression. The bot evolves its own capabilities.
 
-## Philosophy: three forces in opposition
+## Philosophy: two forces
 
-- **生 (add) — fast, signal-triggered.** Create/modify skills and SOUL.md when patterns emerge. No signal → no change. No budget.
-- **磨 (grind) — slow, time-triggered.** Every run, pick one self-owned skill and simplify one part of it. Budget: ≤20 lines diff.
-- **忘 (forget) — slow, time-triggered.** Every run, prune a small number of redundant memory entries. Budget: `min(2 files, 5%)`.
+- **生 (add) — fast, signal-triggered.** Create/modify skills, SOUL.md, or memory when strong patterns emerge. No signal → no change. No budget.
+- **忘 (forget) — slow, time-triggered.** Every run, remove what no longer earns its place. Same principle applies inside a skill (cut redundant sections), inside SOUL (drop phrases that stopped resonating), and across memory (prune superseded entries). Only the budgets differ.
 
-The asymmetry — fast birth, slow simplification — creates a natural filter. Useful additions survive the grind; weak additions fade.
+The asymmetry — fast birth, slow forgetting — creates a natural filter. Useful additions survive the daily compression pressure; weak additions fade.
+
+"磨" (grinding down a skill) and "忘" (pruning memory) are the same force on different objects. Don't split them in your head.
 
 ## Scope
 
@@ -29,7 +30,7 @@ The asymmetry — fast birth, slow simplification — creates a natural filter. 
 
 - ✅ `.claude/skills/<name>/` — **only if** `<name>` is listed in `.claude/skills/.self-skills` (plain-text registry, one name per line).
 - ✅ `SOUL.md`
-- ✅ `memory/*` (prune / compress / merge only)
+- ✅ `memory/*`
 
 **Forbidden:**
 
@@ -37,7 +38,7 @@ The asymmetry — fast birth, slow simplification — creates a natural filter. 
 - ❌ `journal/*` — journals are raw facts, never rewrite history
 - ❌ Any skill **not** in `.self-skills` (plugin-provided skills are third-party mature components — never modify)
 
-If `.claude/skills/.self-skills` does not exist, create it as an empty file. Treat absence as "no self-skills yet", which means Phase B is skipped.
+If `.claude/skills/.self-skills` does not exist, create it as an empty file. Treat absence as "no self-skills yet".
 
 ## Inputs
 
@@ -53,53 +54,63 @@ Read these before deciding anything:
 
 ## Phase A — 生 (conditional, no budget)
 
-Act freely **only** when signals are strong. If no signal matches, skip this phase entirely — do not fabricate work.
+The bot has been doing the same thing over and over, but has no skill for it, or getting the same correction without it sticking. Name the pattern. Next time it recurs, the bot has a handle for it.
 
-**Signal: new skill**
+**When to act**: a request pattern appears in journals ≥3 times in the last 7 days with no matching skill, OR the user corrects the same behavior ≥2 times.
 
-- Look for a request pattern repeated **≥3 times** across the last 7 days of journals, where no existing skill (plugin or self) already covers it.
-- If found: draft a new skill folder `.claude/skills/<name>/SKILL.md` with minimal frontmatter (`name`, `description`, `user-invocable`, `allowed-tools`) and a body tight enough to just work.
-- Append `<name>` to `.claude/skills/.self-skills` (create the file if missing).
+**What to write**:
 
-**Signal: SOUL adjustment**
+- **A new self-skill**: name it for the pattern; draft a SKILL.md that is *minimal and specific* — solving exactly the cases you saw, not the cases you imagine. The forgetting force will compress whatever survives daily use; better to start thin than pad for "future-proofing". Append the name to `.claude/skills/.self-skills`.
+- **A SOUL.md edit**: record what the user actually said or meant, in their own register. Small patch, usually one line under `## Notes from the User`.
+- **A memory entry**: capture anything worth remembering that doesn't belong in a skill or SOUL. Short, plain, one file per idea.
 
-- Look for the **same** user correction repeated **≥2 times** in recent journals (e.g. "don't X", "stop doing Y", or the user visibly softening/hardening the bot's tone).
-- If found: patch `SOUL.md` — usually by appending/editing a line under `## Notes from the User`, occasionally by refining a `## Core Truths` bullet. Keep the change small and in the user's own spirit.
+**What not to do**:
 
-## Phase B — 磨 (always, budget ≤20 lines)
+- Don't invent patterns that only happened once.
+- Don't pre-generalize a new skill for hypothetical cases.
+- Don't touch anything outside the scope section above.
 
-Pick one self-owned skill and make one simplification. If `.self-skills` is empty, skip this phase.
+If in doubt, skip this phase — there's always tomorrow.
 
-**Selection**: round-robin over entries in `.self-skills`; prefer the skill whose file has the oldest last-modified timestamp AND wasn't the target of a recent `grind` commit (check `git log --grep='grind:.*<name>' --since=7.days.ago`).
+## Phase B — 忘 (always, with per-object budgets)
 
-**Audit procedure**: walk each section of the selected SKILL.md and ask "if I remove this, does the skill still fulfill its frontmatter `description`?"
+Things grow heavier than they need to be. A skill's first draft guessed at edge cases; the second pass padded guardrails; by week three there's paragraphs nobody reads. Memory entries get superseded or quietly stop mattering. Daily pressure keeps everything honest — only what earns its place survives.
 
-Candidates for cutting:
+**One question for any candidate**: *"if I remove this, does the bot's capability or knowledge still stand?"* If yes → cut.
 
-- Redundant steps (same thing said twice)
-- Stale guardrails — run `git blame` on the guardrail line; if the original failure mode clearly can't happen anymore, drop it
-- Verbose examples (condense to one line or remove entirely)
-- Unused `allowed-tools` entries (grep the body — if the tool isn't referenced, drop it)
+This force operates on three kinds of objects, each with its own safety budget. Every run, apply it to each kind once:
 
-**Constraints:**
+### Inside a self-skill (budget: ≤20 lines, one cut)
 
-- Cut **one thing**. Diff ≤ 20 lines.
-- Frontmatter `description` must still cover the skill's original trigger scenarios after the cut.
-- If after the cut the skill body has <15 lines of meaningful content and no unique logic → delete the skill folder entirely and remove its name from `.self-skills`. That is the retirement path.
+Pick one self-skill (round-robin over `.self-skills`; prefer the one least recently touched by an evolve commit — `git log --grep='forget:.*<name>' --since=7.days.ago`). If `.self-skills` is empty, skip.
 
-## Phase C — 忘 (always, budget min(2, 5%))
+Walk the SKILL.md and find **one** thing whose removal wouldn't break the frontmatter `description` promise. Common candidates: things said twice, guardrails against failures that can no longer happen (use `git blame` to see why they were added), examples that went from illustrative to archival, `allowed-tools` entries not referenced in the body.
 
-Prune redundant memory entries.
+Cut it. Diff ≤20 lines.
 
-**Budget**: `min(2, floor(0.05 * count(memory/*.md)))`, but always at least 0 (can be a no-op).
+**Retirement is the limit case**: if a self-skill has been forgotten down to <15 lines of real content and nothing unique remains — delete the folder and drop the name from `.self-skills`. Don't mourn it.
 
-**Priority** (delete highest-priority first until budget exhausted):
+### Inside SOUL.md (opportunistic, no fixed budget)
 
-1. Self-contradicting entries already superseded by a newer entry
-2. Facts that have been promoted into `SOUL.md` or a self-skill (information already upgraded in form)
-3. Entries older than 90 days with no recent reference in journals (`grep -l`)
+If a phrase in SOUL.md no longer matches how the bot actually behaves, or it duplicates something said better elsewhere in the file, rewrite or remove it. Only touch SOUL when the mismatch is clear — don't edit for style.
 
-After pruning, update `memory/MEMORY.md` so the index stays consistent.
+### Across memory (budget: `min(2 files, 5%)`)
+
+Prune redundant `memory/` entries. Always conservative — the point isn't to shrink fast, it's to shrink *steadily* without the user noticing anything important vanished.
+
+What counts as safe to forget (roughly in this order):
+
+1. A newer entry already contradicts/replaces this one.
+2. The fact has been promoted into SOUL.md or a skill — it now lives in a more structured form, the raw note is redundant.
+3. Old (>90 days), unreferenced by any recent journal, and not load-bearing for anything you can trace.
+
+What **not** to forget:
+
+- Anything the user explicitly said "remember this" about, unless it's been superseded.
+- The only copy of a fact (if it's not elsewhere, pruning loses it).
+- User profile data — that lives in USER.md, not memory/, but if it's drifted into memory/ by accident, move it, don't delete it.
+
+After pruning, rewrite `memory/MEMORY.md` so the index doesn't point at ghosts.
 
 ## Revert learning (stateless)
 
@@ -118,16 +129,15 @@ If any phase produced a change, stage and commit everything in a single commit w
 ```
 evolve(YYYY-MM-DD): <one-line summary>
 
-add:    <skill/soul changes or "none">  (evidence: <journal refs or commit hashes>)
-grind:  <what was simplified in which skill or "none">  (reasoning: <why still works>)
-forget: <memory files pruned or "none">  (reason: <where info went>)
+add:    <what was added, or "none">    (evidence: <journal refs or commit hashes>)
+forget: <what was removed, or "none">  (reason: <why it no longer earns its place>)
 ```
 
-If all three phases produced zero changes → **do not commit**. Silent no-op is the correct outcome on a quiet day.
+If both phases produced zero changes → **do not commit**. Silent no-op is the correct outcome on a quiet day.
 
 ## Safety invariants
 
 - Never run `git push`. The user's local git is the audit trail.
 - Never touch forbidden paths (see Scope).
-- Never exceed budgets in Phase B (20 lines) or Phase C (min(2, 5%)).
+- Never exceed any per-object budget inside Phase B.
 - If uncertain whether a proposed change is safe, skip it — there's always tomorrow.
