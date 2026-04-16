@@ -26,7 +26,7 @@ Claude Code is already a mature, secure, and intelligent coding agent — tool u
 
 Zero-Claw adds the remaining 10%:
 
-- **Supervisor** (~180 lines) — a Telegram bot for remote restart, status checks, and crash recovery. Because the main bot runs in tmux, you need a way to control it when it's stuck.
+- **Supervisor** — a small Telegram bot for remote restart, status checks, and crash recovery. Because the main bot runs in tmux, you need a way to control it when it's stuck.
 - **Persistent memory** — a heartbeat-driven journal that records daily events and distills long-term knowledge. Claude Code's built-in memory is selective; the journal catches everything.
 - **Heartbeat** — hourly cron during waking hours. Sends online status, reviews conversations, maintains the journal. Last heartbeat of the day consolidates memory.
 - **CLAUDE.md template** — defines your assistant's personality, rules, and cron jobs in plain language. This *is* the app — Claude Code executes it.
@@ -40,7 +40,7 @@ Your bot's capabilities grow automatically as Claude Code evolves. New tools, be
 | Backend | Custom server | Claude Code |
 | Communication | Custom gateway | Telegram plugin |
 | Deployment | Docker + DB + config | tmux + pm2 |
-| Custom code | Thousands of lines | ~180 lines (supervisor only) |
+| Custom code | Thousands of lines | Just a small supervisor |
 | AI upgrades | Manual integration | Automatic (Claude Code updates) |
 | Skills/plugins | Custom plugin system | Claude Code native skills |
 
@@ -126,7 +126,7 @@ zero-claw/                            (Claude Code plugin)
 │   ├── upgrade/                      # /zero-claw:upgrade
 │   └── heartbeat/                    # Heartbeat + journaling
 ├── supervisor/
-│   └── index.mjs                     # Supervisor bot (~180 lines)
+│   └── index.mjs                     # Supervisor bot
 ├── template/
 │   ├── CLAUDE.md                     # Session rules, heartbeat policy, memory
 │   ├── IDENTITY.md                   # Name, creature, vibe, emoji, avatar
