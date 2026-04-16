@@ -31,6 +31,16 @@ Zero-Claw has three skill categories:
 
 Meta-skills are plugin-provided tools the bot uses but cannot modify — they're third-party, with their own release cycle. `evolve` is a self-modification tool (it operates on the bot's self-skills, SOUL, memory). `wiki` is a knowledge-management tool (it operates on a user-chosen vault). They have zero overlap in scope.
 
+## Phase 0 — Language
+
+Match the user's language for every reply, table caption, and status message. Detect in this order:
+
+1. The language the user used to invoke the skill.
+2. The `Language:` field in any bot's `USER.md` under the project root.
+3. System locale.
+
+Only ask (via AskUserQuestion: `"What language should we use? / 使用什么语言？"`) if detection is ambiguous. Don't re-ask on subsequent runs — this skill is meant to be fully automatic.
+
 ## Meta-skill list
 
 **As of this version, the meta-skills are:**
