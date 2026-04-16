@@ -116,17 +116,6 @@ USER.md           # User profile (continuously updated)
 **What goes in USER.md**: everything about the user (see User Info section above).
 **What NOT to save**: code patterns (read the code), git history (use git log), ephemeral task details.
 
-## Self-Evolution
-
-Once a day (at the last heartbeat) the `evolve` skill runs autonomously. Two forces:
-
-- **Add** (signal-triggered, no budget): when patterns recur in the journal, create a new self-skill, tweak `SOUL.md`, or write a memory entry.
-- **Forget** (time-triggered, small daily budget): remove what no longer earns its place — redundant sections inside self-skills, stale phrases in SOUL, superseded memory entries. Same principle, different objects.
-
-**Scope guarantee** — evolve never touches `USER.md`, `IDENTITY.md`, `CLAUDE.md`, or `journal/`. It only modifies `SOUL.md`, `memory/`, and skills listed in `.claude/skills/.self-skills` (plugin-provided skills like `heartbeat` and `evolve` itself are off-limits).
-
-To see what your assistant has changed about itself, run `git log --grep=evolve`. To undo a change, `git revert <commit>` — evolve reads git history on its next run and will avoid repeating reverted changes.
-
 ## Communication
 
 - Reply via Telegram
