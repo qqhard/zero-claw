@@ -4,7 +4,7 @@ Turn [Claude Code](https://claude.ai/claude-code) into a personal AI assistant o
 
 ## Quick Start
 
-Prerequisites: [Claude Code](https://claude.ai/claude-code) subscription + [bun](https://bun.sh/)
+Prerequisite: a [Claude Code](https://claude.ai/claude-code) subscription. Setup checks for `tmux`, `node`, `pm2`, `bun` and walks you through any missing installs.
 
 In a Claude Code session:
 
@@ -84,11 +84,16 @@ Send these to your supervisor bot on Telegram:
 | Command | Action |
 |---------|--------|
 | `/restart` | Restart the assistant |
-| `/status` | Check if running |
+| `/stop` | Stop the assistant |
+| `/start` | Start the assistant |
+| `/status` | Status (all bots if multiple configured) |
 | `/logs` | Last 80 lines of output |
 | `/screen` | Current terminal screen |
 | `/send <text>` | Type into the assistant's terminal |
+| `/monitor [on\|off\|status]` | Push new pane output to Telegram on an interval |
 | `/help` | Show all commands |
+
+When multiple bots are configured, pass the bot name after the command (e.g. `/restart main`).
 
 ## Commands
 
@@ -98,8 +103,11 @@ Run these in a Claude Code session once the plugin is installed.
 |---|---|
 | `/zero-claw:setup` | First-run wizard — prereqs, two bots, config, launch, pair |
 | `/zero-claw:add-bot` | Add another agent under an existing parent directory |
-| `/zero-claw:migrate-from-openclaw` | Import an existing OpenClaw workspace — preserves agents, personas, memory, skills, scripts, MCPs; only asks BotFather for a supervisor if none exists |
 | `/zero-claw:upgrade` | Upgrade an existing bot to the latest template without overwriting your persona |
+| `/zero-claw:upgrade-meta-skill` | Refresh meta-skills (evolve, wiki) across every bot in the project |
+| `/zero-claw:migrate-from-openclaw` | Import an existing OpenClaw workspace — preserves agents, personas, memory, skills, scripts, MCPs; only asks BotFather for a supervisor if none exists |
+| `/zero-claw:evolve` | Run the evolve meta-skill manually (normally auto-triggered on the last heartbeat of the day) |
+| `/zero-claw:wiki` | Ingest notes, recompile pages, search, or lint your knowledge vault |
 
 The upgrade wizard detects your current setup, shows what's changed, and lets you choose what to update. It never overwrites your `CLAUDE.md` / `SOUL.md` / `IDENTITY.md` persona or custom config — only adds missing sections and replaces infrastructure components (supervisor, `start.sh`, built-in skills).
 
@@ -120,9 +128,12 @@ zero-claw/                            (Claude Code plugin)
 ├── skills/
 │   ├── setup/                        # /zero-claw:setup
 │   ├── add-bot/                      # /zero-claw:add-bot
-│   ├── migrate-from-openclaw/        # /zero-claw:migrate-from-openclaw
 │   ├── upgrade/                      # /zero-claw:upgrade
-│   └── heartbeat/                    # Heartbeat + journaling
+│   ├── upgrade-meta-skill/           # /zero-claw:upgrade-meta-skill
+│   ├── migrate-from-openclaw/        # /zero-claw:migrate-from-openclaw
+│   ├── evolve/                       # Self-compression meta-skill (copied into each bot)
+│   ├── wiki/                         # Incremental wiki compiler meta-skill (copied into each bot)
+│   └── heartbeat/                    # Hourly cron (autonomous)
 ├── supervisor/
 │   └── index.mjs                     # Supervisor bot
 ├── template/
