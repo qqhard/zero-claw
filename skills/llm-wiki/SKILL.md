@@ -13,10 +13,34 @@ allowed-tools:
 
 # LLM-Wiki (meta-skill)
 
-You are the compiler. Raw notes are the source. `_wiki/` pages are the compiled artifact. `meta.json` is the Makefile.
+Implementation of Karpathy's LLM Wiki pattern (https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+
+## Core idea
+
+The wiki is a **persistent, compounding artifact** — not re-derived on every query. Three layers:
+
+- **Raw sources** (`<vault>/` minus `_wiki/`): your curated collection. Immutable — the LLM reads from them, never rewrites.
+- **Wiki** (`<vault>/_wiki/`): LLM-generated, LLM-owned markdown. Summaries, entity pages, concept pages, connections. You read it; the LLM writes it.
+- **Schema** (this `SKILL.md`): the conventions and workflows. Co-evolves with the user.
+
+The human curates sources and asks questions. The LLM does the bookkeeping — summarizing, cross-referencing, filing, maintaining consistency — because that's what kills human-maintained wikis.
+
+## Two navigation files (live in `_wiki/`)
+
+- **`_wiki/index.md`** — content-oriented catalog. Every wiki page listed with a link + one-line summary, grouped by category (concepts, entities, sources). LLM updates on every Ingest. LLM reads **first** on Query to find relevant pages before drilling in.
+- **`_wiki/log.md`** — chronological append-only record. Each entry starts with `## [YYYY-MM-DD HH:MM] <op> | <title>` so `grep "^## \[" _wiki/log.md | tail -20` works. Track ingests, recompiles, non-trivial queries that were filed back, lint passes.
+
+## Our additions on top of Karpathy
+
+Not in the original gist — ours, for heartbeat-driven automation:
+
+- **`sources:` dependency edge** in page frontmatter → the `meta.json` Makefile knows which pages go stale when a raw changes.
+- **Recompile** op (§2) — incremental invalidation of dirty pages.
+- **Maintain** op (§5) — janitor that runs on heartbeat, silent unless something needs attention.
+- **BM25 / vector search** via `wiki-search` (analogous to qmd; see §"Enabling vector search").
 
 **Never touch `.wiki-cache/` manually** — scripts own it.
-**The `sources:` frontmatter list is the dependency edge.** If you don't record it, the incremental compiler can't invalidate the page.
+**The `sources:` list is the dep edge.** Without it, Recompile can't invalidate the page.
 
 ## Environment
 
@@ -31,29 +55,34 @@ Scripts live in `<skill>/scripts/`. Run them with `node`.
 
 ### 1. Ingest `<raw-path>` — compile new source
 
-Self-reference first. You are about to write wiki pages, and the existing wiki is your own prior work — query it before writing.
+Self-reference first. You are about to write wiki pages, and the existing wiki is your own prior work — consult it before writing.
 
-1. `node scripts/wiki-search.mjs <vault> "<topic from raw filename/heading>" --k 10 --json`
-   Look at what pages already exist on related topics.
-2. Read the raw note fully. Read the top candidate wiki pages.
-3. Decide: **new page** vs **extend existing page** vs **split an over-grown page**. Prefer extending over creating. Prefer splitting when a page crosses ~400 words on distinct sub-topics.
-4. Write/edit wiki pages under `_wiki/concepts/`, `_wiki/entities/{people,organizations,tools}/`, or `_wiki/sources/`. Use the frontmatter contract below.
-5. For each page you touched:
+1. Read `_wiki/index.md` (if it exists) to see the shape of the existing wiki.
+2. `node scripts/wiki-search.mjs <vault> "<topic from raw filename/heading>" --k 10 --json`
+   Find pages related to this source.
+3. Read the raw note fully. Read the top candidate wiki pages.
+4. Decide per candidate page: **new page** vs **extend existing page** vs **split an over-grown page**. Prefer extending over creating. Prefer splitting when a page crosses ~400 words on distinct sub-topics. A single raw source often touches 10-15 wiki pages.
+5. Write/edit wiki pages under `_wiki/concepts/`, `_wiki/entities/{people,organizations,tools}/`, or `_wiki/sources/`. Use the frontmatter contract below.
+6. For each page you touched:
    - Append the raw path to `sources:` (vault-relative, e.g. `notes/2026/foo.md`). **Required — this is the dep edge.**
    - Add bidirectional `[[links]]` in body and `related:` between this page and any page it references.
    - Bump `updated:` to today.
-6. Append one line to `_wiki/_wiki-log.md`:
+   - Note contradictions: if a new source contradicts an existing claim on a page, don't silently overwrite — record both and flag which source supports which (brief inline note or a `confidence:` downgrade).
+7. Update `_wiki/index.md`: add entries for new pages (link + one-line summary, under the right category). Revise summaries for pages whose scope materially changed. Create the file if missing, using categories: Concepts, Entities (People / Orgs / Tools), Sources.
+8. Append to `_wiki/log.md`:
    ```
-   - YYYY-MM-DD HH:MM ingest <raw-path> → [page1, page2] (<short reason>)
+   ## [YYYY-MM-DD HH:MM] ingest | <raw-title-or-path>
+   - pages: [[Page One]], [[Page Two]]
+   - note: <one-line what was added or why>
    ```
    Create the file if missing.
-7. Build + stamp + index:
+9. Build + stamp + index:
    ```
    node scripts/wiki-graph.mjs <vault>
    for each page you touched: node scripts/wiki-graph.mjs <vault> --stamp <page>
    node scripts/wiki-index.mjs <vault>
    ```
-8. Report to user: what pages changed, what links were added, any pages you almost wrote but folded into existing ones.
+10. Report to user: what pages changed, what links were added, any pages you almost wrote but folded into existing ones, any contradictions flagged.
 
 ### 2. Recompile — invalidate dirty pages
 
@@ -68,22 +97,39 @@ Run when the user says "recompile", "the sources changed", or on heartbeat.
    - Stamp it: `node scripts/wiki-graph.mjs <vault> --stamp <page-rel-path>` — this writes the current raw hashes into the page's `sourceHashes`, clearing the dirty flag.
 4. For **orphan sources**: ask the user whether to Ingest them now.
 5. `node scripts/wiki-index.mjs <vault>` (re-index changed pages).
-6. Append log:
+6. If a page's scope or one-liner changed, update its entry in `_wiki/index.md`.
+7. Append to `_wiki/log.md`:
    ```
-   - YYYY-MM-DD HH:MM recompile [page1, page2] (sources: [a, b])
+   ## [YYYY-MM-DD HH:MM] recompile | <short reason>
+   - pages: [[Page One]], [[Page Two]]
+   - sources: notes/a.md, notes/b.md
    ```
-7. Final `--diff` should return empty `dirtyPages`. If any remain, you missed stamping.
+8. Final `--diff` should return empty `dirtyPages`. If any remain, you missed stamping.
 
 ### 3. Query `<topic>` — look up compiled artifacts
 
-1. `node scripts/wiki-search.mjs <vault> "<topic>" --k 10 --json`
-2. Read the top 3-5 candidate pages. Follow `[[links]]` in bodies (= graph traversal) for 1-2 hops when the answer spans pages.
-3. Synthesize. Cite which pages you drew from.
-4. If the synthesis is valuable and no single page captures it, offer to write a new concept page. If accepted, that's an Ingest over the synthesis (treat your chat as the raw source; `sources:` may be empty or point to the original raws you pulled from).
+1. Read `_wiki/index.md` first. Often the answer is "this page exists" and you can skip search entirely.
+2. If the index didn't resolve it, or you suspect related pages beyond what it lists: `node scripts/wiki-search.mjs <vault> "<topic>" --k 10 --json`
+3. Read the top 3-5 candidate pages. Follow `[[links]]` in bodies (= graph traversal) for 1-2 hops when the answer spans pages.
+4. Synthesize. Cite which pages you drew from (and any raw sources if you dipped into them).
+5. Output format matches the question — a markdown answer, a comparison table, a slide (Marp), a chart, whatever fits.
+6. **File valuable synthesis back as a new wiki page** (first-class, not optional). If your answer pieced together an analysis, comparison, or connection that the wiki didn't already have, create a new page for it — the synthesis compounds just like an ingested source. Treat your chat as the raw source; `sources:` points to the original raws you pulled from. Append a `## [YYYY-MM-DD HH:MM] query | <topic>` entry to `_wiki/log.md` when you file a query back. Skip only when the answer is trivial retrieval (the page already says it).
 
 ### 4. Lint
 
-`node scripts/wiki-lint.mjs <vault>` → reports broken `[[links]]`, islands (no inbound + no outbound), missing frontmatter. Exit code 2 when issues exist — useful for heartbeat gating.
+Health-check the wiki. Two layers:
+
+**Mechanical** (script-checkable):
+`node scripts/wiki-lint.mjs <vault>` → broken `[[links]]`, islands (no inbound + no outbound), missing frontmatter. Exit code 2 when issues exist — useful for heartbeat gating.
+
+**Semantic** (LLM reads and judges — run when user asks "lint" explicitly):
+- Contradictions between pages (page A says X, page B says not-X, both citing sources).
+- Stale claims newer sources superseded (page still reflects an older source's view).
+- Important concepts mentioned across pages but lacking their own page.
+- Missing cross-references (page A mentions concept page B exists for, but doesn't `[[link]]` it).
+- Data gaps a web search could fill — surface these as "suggested follow-ups," don't auto-search.
+
+Report both layers together. Ask before fixing.
 
 ### 5. Maintain — heartbeat-triggered self-check
 
@@ -95,7 +141,7 @@ Called by a periodic loop (e.g. `skills/heartbeat`), not by the user directly. K
 4. Decide:
    - **Dirty pages with few sources (≤ 3) and small raw diffs**: auto-Recompile (per §2). Log.
    - **Dirty pages with many sources or large raw diffs**: surface to user — don't silently rewrite dense pages.
-   - **Orphan sources**: never auto-Ingest. Add to a pending list (`_wiki/_wiki-inbox.md`) — appended, not rewritten — and mention in daily summary.
+   - **Orphan sources**: never auto-Ingest. Add to a pending list (`_wiki/inbox.md`) — appended, not rewritten — and mention in daily summary.
    - **Broken links**: surface in daily summary; don't fix silently (could mask real drift).
    - **Islands**: surface weekly, not every heartbeat.
 5. `node scripts/wiki-index.mjs <vault>` at the end if anything changed.
@@ -150,8 +196,13 @@ confidence: high | medium | low   # optional
 
 ## Anti-patterns
 
-- Forgetting `sources:` → dep edge invisible → recompile can't find the page.
+- Forgetting `sources:` → dep edge invisible → Recompile can't find the page.
 - Editing a wiki page to add new facts without touching `sources:` → `sources:` lies about which raws back the page.
 - Rewriting a whole page when one section changed → wasteful; edit the affected section.
 - Creating a new page when an existing one would do (silent duplication).
-- Running `wiki-index` without first running `wiki-graph` — index reads stale meta.
+- Forgetting to update `_wiki/index.md` on Ingest → future queries miss the page.
+- Letting valuable Query synthesis live only in chat → exploration doesn't compound, and you'll re-derive the same answer next week.
+- Copying raw source text wholesale into wiki pages → wiki becomes a mirror, not a synthesis. Summarize, connect, cite back.
+- Silently overwriting a claim when a new source contradicts an old one → record both, let the user (or a later pass) decide.
+- Confusing `_wiki/index.md` (human-readable content catalog) with `wiki-index.mjs` (BM25/vector search script). They're different tools.
+- Running `wiki-index` without first running `wiki-graph` — the search index reads stale meta.
