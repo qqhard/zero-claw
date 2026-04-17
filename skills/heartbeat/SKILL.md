@@ -1,6 +1,6 @@
 ---
 name: heartbeat
-description: "Periodic keep-alive and journaling. Called by CronCreate heartbeat job during waking hours."
+description: "Periodic keep-alive, journaling, and memory/wiki maintenance. Called by CronCreate heartbeat job during waking hours."
 user-invocable: false
 allowed-tools:
   - Read
@@ -13,44 +13,52 @@ allowed-tools:
 
 # Heartbeat
 
-Periodic keep-alive, journaling, and memory consolidation.
+Periodic keep-alive and the owner of memory maintenance + wiki orchestration. Evolve is invoked here once per day, but evolve's scope is narrower (skill library only) — heartbeat owns everything else that needs daily upkeep.
 
 ## Every Heartbeat
 
-1. Send a brief online status to Telegram (plain text, no emoji)
-2. Review recent conversation for notable events
-3. Write events to `journal/YYYY-MM-DD.md`. Tag each entry with skills that triggered — format: `- HH:MM event text (skills: x, y)`. This feeds evolve's usage signal.
-4. **If the bot has a wiki vault configured** (look in `CLAUDE.md` for the vault path), do the wiki loop — silent when there's nothing to do:
-   - Review the last hour of chat + journal updates. Triggers at this cadence are the ones that happened within the last hour: a finished `learn` session, a multi-turn problem resolution worth reusing, or user-dropped raw files in the vault. Run **Capture** → **Ingest** for each captured raw. One Capture per focused topic, not one per chat.
+1. Send a brief online status to Telegram (plain text, no emoji).
+2. Review the last hour of conversation. For each notable event, write to `journal/YYYY-MM-DD.md` using the format in "Journal Format" below. Tag each entry with:
+   - `(skills: x, y)` — which skills the event involved. Feeds evolve's retire signal.
+   - `(candidate-skill: <slug>)` — if the work you just did felt like it could be a reusable skill (you wrote a temp script, you ran a multi-step research flow that might recur, you solved something you've solved before). Feeds evolve's upgrade signal. Optional; only annotate when you actually notice the signal in the moment.
+3. If a memory-worthy moment happened in the last hour (user stated a new preference, a pattern clarified itself, a feedback that belongs in long-term memory), write a `memory/*.md` entry now. Don't wait for EOD. Update `memory/MEMORY.md` index.
+4. **If the bot has a wiki vault configured** (look in `CLAUDE.md` for the vault path), do the wiki loop — silent when nothing qualifies:
+   - Scan the last hour for Capture triggers: a finished `learn` session's knowledge output, a multi-turn problem resolution worth reusing, user-dropped raw files in the vault, or an explicit "save this" ask. Run `llm-wiki` **Capture** → **Ingest** for each captured raw. One Capture per focused topic, not per chat.
    - Run `llm-wiki` **Recompile** (§2). Cheap; no-op when nothing is dirty.
-   - If anything changed (captured, ingested, recompiled, or orphan sources newly in inbox), append a one-line note to today's journal so EOD review sees it.
+   - If anything changed, append one line to today's journal so EOD review sees it.
 
 ## Last Heartbeat of the Day
 
-Triggered at the final hour in the waking range:
+Triggered at the final hour in the waking range. Run in this order — each step reads the output of the previous:
 
-1. Review today's journal
-2. Distill important information:
-   - User preferences or feedback → update `USER.md`
-   - Patterns, lessons, outcomes → write to `memory/` files
-3. Update `memory/MEMORY.md` index
-4. Prune outdated or superseded memory files
-5. Keep `memory/MEMORY.md` under 200 lines
-6. Run the `evolve` skill — it will autonomously upgrade (add/edit) and forget across skills, SOUL, and memory per its own budgets. This is where `evolve` lives — once per day, after distillation, not on every heartbeat.
-7. **If a wiki vault is configured**, do the EOD wiki pass:
-   - Today's distillation + evolve may have surfaced `memory/` or `SOUL.md` content that has outgrown private-memory format and deserves vault-level promotion (durable, queryable, cross-linked). If so, run `llm-wiki` **Capture** → **Ingest** for each, then **Recompile**.
+1. **Review today's journal.** Look for notable events, recurring themes, feedback, corrections.
+2. **Memory maintenance** (heartbeat's core EOD job):
+   - Distill anything in today's journal that deserves long-term memory (patterns, lessons, feedback, project context) into `memory/*.md`. One idea per file.
+   - Prune: remove superseded entries; consolidate duplicates. Budget `min(2 files, 5%)` — conservative. An entry earns removal when a newer file already supersedes it, when it's been promoted into a skill, or when it's >90 days old and no recent journal references it.
+   - Keep `memory/MEMORY.md` under 200 lines and pointing only at files that exist.
+   - Never remove anything the user explicitly said "remember this" about, unless superseded.
+3. **Run the `evolve` skill.** Evolve reads cleaned memory + journal and decides skill upgrades/retires on its own budget. See `skills/evolve/SKILL.md`. Heartbeat does not second-guess it.
+4. **Wiki EOD pass** (if a vault is configured):
+   - If today's memory maintenance or journal review surfaced *world-knowledge* content that accidentally ended up in memory (a fact about some domain, not a user-bot relationship note), that's a case to promote: run `llm-wiki` **Capture** → **Ingest** → **Recompile** for each.
    - Then run `llm-wiki` **Lint** (§4):
-   - Mechanical first (`wiki-lint.mjs` — broken links, islands, missing frontmatter).
-   - Semantic next (contradictions, stale claims, missing pages, data gaps the bot can spot from the day's reading).
-   - Surface all findings in the daily summary. Also surface `_wiki/inbox.md` entries that accumulated today (orphan raw sources the user dropped in — ask whether to Ingest).
-   - Don't auto-fix semantic issues; ask.
+     - Mechanical first (`wiki-lint.mjs` — broken links, islands, missing frontmatter).
+     - Semantic next (contradictions, stale claims, missing pages, data gaps the bot can spot from the day's reading).
+     - Surface findings in the daily summary. Also surface `_wiki/inbox.md` entries that accumulated today — ask whether to Ingest the orphans.
+     - Don't auto-fix semantic issues; ask.
+
+## What heartbeat does NOT do
+
+- **Never writes `USER.md`.** The main Agent updates USER.md reactively when the user shares profile info in conversation (per `CLAUDE.md`). Heartbeat doesn't batch-distill into it.
+- **Never writes `SOUL.md`.** Only the user directs SOUL changes (the main Agent acts as scribe when they do). Heartbeat and evolve don't touch it.
+- **Never touches `IDENTITY.md` or `CLAUDE.md`.** Framework files.
 
 ## Monday's Last Heartbeat
 
 Additionally:
-1. Read the past week's journals
-2. Identify trends and recurring patterns
-3. Consolidate into long-term memory
+
+1. Read the past week's journals.
+2. Identify trends and recurring patterns not obvious in any single day.
+3. Consolidate into long-term memory (add/merge entries; no separate mechanism).
 
 ## Journal Format
 
@@ -58,8 +66,10 @@ Additionally:
 # YYYY-MM-DD
 
 ## Events
-- HH:MM Event description
+- HH:MM Event description (skills: x, y) (candidate-skill: foo)
 
 ## Follow-up
 - Items needing attention
 ```
+
+The `(skills: ...)` and `(candidate-skill: ...)` annotations feed evolve; skip them if neither applies to an entry.

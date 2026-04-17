@@ -29,7 +29,7 @@ Zero-Claw has three skill categories:
 | Core autonomous | `heartbeat` | Plugin | Refreshed by `/zero-claw:upgrade` |
 | **Meta-skills** | `evolve` | Plugin | Refreshed by **this skill** |
 
-Meta-skills are plugin-provided tools the bot uses but cannot modify — they're third-party, with their own release cycle. `evolve` is a self-modification tool (it operates on the bot's self-skills, SOUL, memory). `llm-wiki` is a knowledge-management tool (it operates on a user-chosen vault). They have zero overlap in scope.
+Meta-skills are plugin-provided tools the bot uses but cannot modify — they're third-party, with their own release cycle. `evolve` maintains the bot's self-skill library (add/edit/retire). `llm-wiki` maintains the user-chosen knowledge vault. `learn` runs Socratic learning sessions. They have zero overlap in scope.
 
 ## Phase 0 — Language
 

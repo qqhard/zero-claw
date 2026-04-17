@@ -1,6 +1,6 @@
 ---
 name: evolve
-description: "Daily self-evolution: upgrade (add + edit) when patterns emerge, forget what no longer earns its place. Triggered by heartbeat's last-of-day run, or manually via 'evolve' / 'self-review'."
+description: "Daily skill-library maintenance. Upgrades (adds/edits) skills when patterns emerge, retires skills unused for 90+ days. Triggered by heartbeat's last-of-day run, or manually via 'evolve' / 'self-review'. Only touches `.claude/skills/` — memory, SOUL, and USER belong to other owners."
 user-invocable: true
 allowed-tools:
   - Read
@@ -13,108 +13,79 @@ allowed-tools:
 
 # Evolve
 
-Autonomous daily self-compression. The bot evolves its own capabilities.
-
-## Philosophy: two forces
-
-- **Upgrade — fast, signal-triggered.** Create new or edit existing skills / SOUL / memory when a strong pattern emerges. "Add" and "edit" are the same force: the bot's capability goes up. No signal → no change. No budget.
-- **Forget — slow, time-triggered.** Every run, reduce what no longer earns its place. The same reduction principle applies to every writable object — skills, SOUL, memory — only the budgets differ. This is entropy control: without steady pressure, weight accumulates.
-
-The asymmetry — fast upgrade, slow forget — is a natural filter. Useful additions survive the daily reduction pressure; weak additions fade.
+Daily skill-library maintenance. The one job: keep the set of self-skills aligned with what the bot actually does, without letting it bloat.
 
 ## Scope
+
+`evolve` is about **skills and only skills**. Memory, SOUL, USER are owned elsewhere; don't touch them.
 
 **Allowed to touch:**
 
 - ✅ `.claude/skills/<name>/` — **only if** `<name>` is listed in `.claude/skills/.self-skills` (plain-text registry, one name per line).
-- ✅ `SOUL.md`
-- ✅ `memory/*`
+- ✅ `.claude/skills/.self-skills` (the registry itself).
 
 **Forbidden:**
 
-- ❌ `USER.md`, `IDENTITY.md`, `CLAUDE.md`
-- ❌ `journal/*` — journals are raw facts, never rewrite history
-- ❌ Any skill **not** in `.self-skills` (plugin-provided skills are third-party mature components — never modify)
+- ❌ `SOUL.md` — user-driven, Agent writes only on explicit direction.
+- ❌ `USER.md` — updated reactively by the main Agent when user shares profile info; never by evolve.
+- ❌ `memory/*` — heartbeat's domain.
+- ❌ `IDENTITY.md`, `CLAUDE.md` — framework definitions, user-driven.
+- ❌ `journal/*` — raw facts, never rewrite.
+- ❌ Any skill **not** in `.self-skills` (plugin-provided skills are third-party — never modify).
 
-If `.claude/skills/.self-skills` does not exist, create it as an empty file. Treat absence as "no self-skills yet".
+If `.claude/skills/.self-skills` does not exist, create it as an empty file.
+
+## Philosophy: two phases
+
+- **Upgrade — fast, signal-triggered.** Create or edit a self-skill when a pattern recurs. "Add" and "edit" are the same force: the library grows more useful. No signal → no change.
+- **Retire — slow, usage-triggered.** Delete skills that haven't been used in 90 days. Anti-entropy pressure on the library.
 
 ## Inputs
 
 Read these before deciding anything:
 
 1. Today's journal: `journal/$(date +%Y-%m-%d).md`
-2. Last 7 days of journals: `journal/*.md` (recent)
-3. Recent commits: `git log --since=7.days.ago --oneline`
-4. Recent self-evolution: `git log --grep='^evolve(' --since=30.days.ago`
-5. Reverted evolve commits: `git log --grep='^Revert.*evolve(' --since=30.days.ago` — for each, read the reverted diff and note the file + section to avoid.
-6. Current `memory/` state: `ls memory/*.md` and read `memory/MEMORY.md`
-7. Current self-skills: `cat .claude/skills/.self-skills` (may be empty / missing)
+2. Last 7 days of journals (for upgrade signals): `journal/*.md`
+3. Last 90 days of journals (for retire signals): same glob, wider window.
+4. Reverted evolve commits: `git log --grep='^Revert.*evolve(' --since=30.days.ago` — for each, read the reverted diff and note the file + section to avoid.
+5. Current self-skills: `cat .claude/skills/.self-skills`.
 
 ## Phase A — Upgrade (conditional, no budget)
 
-The bot has been doing the same thing over and over but has no skill for it, or getting the same correction without it sticking, or has an existing skill/SOUL entry that almost-but-not-quite captures a recurring pattern. Name the gap. Next time it recurs, the bot has a better handle for it.
+**When to act** (any of the following is enough):
 
-**When to act**: a request pattern appears in journals ≥3 times in the last 7 days with no matching skill (or the existing one doesn't cover the real case), OR the user corrects the same behavior ≥2 times.
+- Today's or recent journals contain `(candidate-skill: <slug>)` annotations — these are in-the-moment recognitions by the main Agent that a task could become a reusable skill. Read the surrounding entries to see what the flow looked like.
+- A request pattern appears in journals ≥3 times in the last 7 days with no matching skill (or the existing one doesn't actually cover the real case).
+- The user corrects the same behavior ≥2 times in recent journals.
 
-**What to write** (add or edit, same force):
+**What to write**:
 
-- **A self-skill** — new or edited. New: name it for the pattern; draft a SKILL.md that is *minimal and specific* — solving exactly the cases you saw, not the cases you imagine. Append the name to `.claude/skills/.self-skills`. Edit: tighten an existing self-skill to actually cover the case that keeps slipping through. Prefer editing to creating when a related skill exists.
-- **A SOUL.md entry** — new or edited. Record what the user actually said or meant, in their own register. Small patch, usually one line under `## Notes from the User`.
-- **A memory entry** — new or edited. Capture anything worth remembering that doesn't belong in a skill or SOUL. Short, plain, one file per idea. Editing an existing memory is fine when it's a refinement of the same fact.
+- **New self-skill**: name it for the pattern; draft a SKILL.md that is *minimal and specific* — solving exactly the cases you saw, not the cases you imagine. Include a concrete `description` with trigger phrases. Append the name to `.claude/skills/.self-skills`.
+- **Edit an existing self-skill**: tighten it to actually cover the case that keeps slipping through, or replace an outdated section. Prefer editing over creating when a related skill exists.
 
-The forgetting force will reduce whatever survives daily use; start thin, let Phase B compress.
+The bot benefits from small, focused skills. When in doubt about whether to split or merge, prefer the version closer to the concrete case.
 
 **What not to do**:
 
 - Don't invent patterns that only happened once.
-- Don't pre-generalize a new skill for hypothetical cases.
-- Don't touch anything outside the scope section above.
+- Don't pre-generalize for hypothetical cases.
+- Don't touch anything outside the Scope section.
 
 If in doubt, skip this phase — there's always tomorrow.
 
-## Phase B — Forget (always, with per-object budgets)
+## Phase B — Retire (always)
 
-Things grow heavier than they need to be. A skill's first draft guessed at edge cases; the second pass padded guardrails; by week three there's paragraphs nobody reads. Memory entries get superseded or quietly stop mattering. Daily pressure keeps everything honest — only what earns its place survives. This is the anti-entropy force.
+Scan `.self-skills`. For each registered skill, count its appearances in journal `(skills: ...)` tags over the last 90 days.
 
-**One question for any candidate**: *"if I remove this, does the bot's capability or knowledge still stand?"* If yes → cut.
+- **0 appearances in 90 days** → delete the folder, drop the name from `.self-skills`.
+- **Non-zero but low** → leave alone. 90-day zero-use is the hard line; low-use skills still earn their place.
+- **Grace period**: skills added in the last 90 days are exempt (check creation date via `git log --diff-filter=A --follow <skill path>`).
 
-This force operates on three kinds of objects, each with its own safety budget. Every run, apply it to each kind once:
-
-### Inside a self-skill (budget: ≤20 lines, one cut)
-
-Pick one self-skill (round-robin over `.self-skills`; prefer the one least recently touched by an evolve commit — `git log --grep='forget:.*<name>' --since=7.days.ago`). If `.self-skills` is empty, skip.
-
-Walk the SKILL.md and find **one** thing whose removal wouldn't break the frontmatter `description` promise. Common candidates: things said twice, guardrails against failures that can no longer happen (use `git blame` to see why they were added), examples that went from illustrative to archival, `allowed-tools` entries not referenced in the body.
-
-Cut it. Diff ≤20 lines.
-
-**Retirement is the limit case**: if a self-skill has been forgotten down to <15 lines of real content and nothing unique remains — delete the folder and drop the name from `.self-skills`. Don't mourn it.
-
-### Inside SOUL.md (opportunistic, no fixed budget)
-
-If a phrase in SOUL.md no longer matches how the bot actually behaves, or it duplicates something said better elsewhere in the file, rewrite or remove it. Only touch SOUL when the mismatch is clear — don't edit for style.
-
-### Across memory (budget: `min(2 files, 5%)`)
-
-Prune redundant `memory/` entries. Always conservative — the point isn't to shrink fast, it's to shrink *steadily* without the user noticing anything important vanished.
-
-What counts as safe to forget (roughly in this order):
-
-1. A newer entry already contradicts/replaces this one.
-2. The fact has been promoted into SOUL.md or a skill — it now lives in a more structured form, the raw note is redundant.
-3. Old (>90 days), unreferenced by any recent journal, and not load-bearing for anything you can trace.
-
-What **not** to forget:
-
-- Anything the user explicitly said "remember this" about, unless it's been superseded.
-- The only copy of a fact (if it's not elsewhere, pruning loses it).
-- User profile data — that lives in USER.md, not memory/, but if it's drifted into memory/ by accident, move it, don't delete it.
-
-After pruning, rewrite `memory/MEMORY.md` so the index doesn't point at ghosts.
+The goal is anti-entropy, not aggressive pruning. A skill unused for 90 days is either wrong, obsolete, or replaced — in none of those cases is keeping it helpful.
 
 ## Revert learning (stateless)
 
-Before writing anything in any phase:
+Before writing anything:
 
 ```bash
 git log --grep='^Revert.*evolve(' --since=30.days.ago --format='%H'
@@ -130,7 +101,7 @@ If any phase produced a change, stage and commit everything in a single commit w
 evolve(YYYY-MM-DD): <one-line summary>
 
 upgrade: <what was added or edited, or "none">  (evidence: <journal refs or commit hashes>)
-forget:  <what was removed, or "none">          (reason: <why it no longer earns its place>)
+retire:  <what was removed, or "none">          (reason: "90d no usage" or other)
 ```
 
 If both phases produced zero changes → **do not commit**. Silent no-op is the correct outcome on a quiet day.
@@ -139,5 +110,5 @@ If both phases produced zero changes → **do not commit**. Silent no-op is the 
 
 - Never run `git push`. The user's local git is the audit trail.
 - Never touch forbidden paths (see Scope).
-- Never exceed any per-object budget inside Phase B.
+- Never retire a skill added less than 90 days ago.
 - If uncertain whether a proposed change is safe, skip it — there's always tomorrow.
