@@ -1,6 +1,6 @@
 ---
 name: evolve
-description: "Daily self-evolution: add skills/SOUL when patterns emerge, forget what no longer earns its place (both inside skills and in memory). Triggered by heartbeat's last-of-day run, or manually via 'evolve' / 'self-review'."
+description: "Daily self-evolution: upgrade (add + edit) when patterns emerge, forget what no longer earns its place. Triggered by heartbeat's last-of-day run, or manually via 'evolve' / 'self-review'."
 user-invocable: true
 allowed-tools:
   - Read
@@ -17,12 +17,10 @@ Autonomous daily self-compression. The bot evolves its own capabilities.
 
 ## Philosophy: two forces
 
-- **生 (add) — fast, signal-triggered.** Create/modify skills, SOUL.md, or memory when strong patterns emerge. No signal → no change. No budget.
-- **忘 (forget) — slow, time-triggered.** Every run, remove what no longer earns its place. Same principle applies inside a skill (cut redundant sections), inside SOUL (drop phrases that stopped resonating), and across memory (prune superseded entries). Only the budgets differ.
+- **Upgrade — fast, signal-triggered.** Create new or edit existing skills / SOUL / memory when a strong pattern emerges. "Add" and "edit" are the same force: the bot's capability goes up. No signal → no change. No budget.
+- **Forget — slow, time-triggered.** Every run, reduce what no longer earns its place. The same reduction principle applies to every writable object — skills, SOUL, memory — only the budgets differ. This is entropy control: without steady pressure, weight accumulates.
 
-The asymmetry — fast birth, slow forgetting — creates a natural filter. Useful additions survive the daily compression pressure; weak additions fade.
-
-"磨" (grinding down a skill) and "忘" (pruning memory) are the same force on different objects. Don't split them in your head.
+The asymmetry — fast upgrade, slow forget — is a natural filter. Useful additions survive the daily reduction pressure; weak additions fade.
 
 ## Scope
 
@@ -52,17 +50,19 @@ Read these before deciding anything:
 6. Current `memory/` state: `ls memory/*.md` and read `memory/MEMORY.md`
 7. Current self-skills: `cat .claude/skills/.self-skills` (may be empty / missing)
 
-## Phase A — 生 (conditional, no budget)
+## Phase A — Upgrade (conditional, no budget)
 
-The bot has been doing the same thing over and over, but has no skill for it, or getting the same correction without it sticking. Name the pattern. Next time it recurs, the bot has a handle for it.
+The bot has been doing the same thing over and over but has no skill for it, or getting the same correction without it sticking, or has an existing skill/SOUL entry that almost-but-not-quite captures a recurring pattern. Name the gap. Next time it recurs, the bot has a better handle for it.
 
-**When to act**: a request pattern appears in journals ≥3 times in the last 7 days with no matching skill, OR the user corrects the same behavior ≥2 times.
+**When to act**: a request pattern appears in journals ≥3 times in the last 7 days with no matching skill (or the existing one doesn't cover the real case), OR the user corrects the same behavior ≥2 times.
 
-**What to write**:
+**What to write** (add or edit, same force):
 
-- **A new self-skill**: name it for the pattern; draft a SKILL.md that is *minimal and specific* — solving exactly the cases you saw, not the cases you imagine. The forgetting force will compress whatever survives daily use; better to start thin than pad for "future-proofing". Append the name to `.claude/skills/.self-skills`.
-- **A SOUL.md edit**: record what the user actually said or meant, in their own register. Small patch, usually one line under `## Notes from the User`.
-- **A memory entry**: capture anything worth remembering that doesn't belong in a skill or SOUL. Short, plain, one file per idea.
+- **A self-skill** — new or edited. New: name it for the pattern; draft a SKILL.md that is *minimal and specific* — solving exactly the cases you saw, not the cases you imagine. Append the name to `.claude/skills/.self-skills`. Edit: tighten an existing self-skill to actually cover the case that keeps slipping through. Prefer editing to creating when a related skill exists.
+- **A SOUL.md entry** — new or edited. Record what the user actually said or meant, in their own register. Small patch, usually one line under `## Notes from the User`.
+- **A memory entry** — new or edited. Capture anything worth remembering that doesn't belong in a skill or SOUL. Short, plain, one file per idea. Editing an existing memory is fine when it's a refinement of the same fact.
+
+The forgetting force will reduce whatever survives daily use; start thin, let Phase B compress.
 
 **What not to do**:
 
@@ -72,9 +72,9 @@ The bot has been doing the same thing over and over, but has no skill for it, or
 
 If in doubt, skip this phase — there's always tomorrow.
 
-## Phase B — 忘 (always, with per-object budgets)
+## Phase B — Forget (always, with per-object budgets)
 
-Things grow heavier than they need to be. A skill's first draft guessed at edge cases; the second pass padded guardrails; by week three there's paragraphs nobody reads. Memory entries get superseded or quietly stop mattering. Daily pressure keeps everything honest — only what earns its place survives.
+Things grow heavier than they need to be. A skill's first draft guessed at edge cases; the second pass padded guardrails; by week three there's paragraphs nobody reads. Memory entries get superseded or quietly stop mattering. Daily pressure keeps everything honest — only what earns its place survives. This is the anti-entropy force.
 
 **One question for any candidate**: *"if I remove this, does the bot's capability or knowledge still stand?"* If yes → cut.
 
@@ -129,8 +129,8 @@ If any phase produced a change, stage and commit everything in a single commit w
 ```
 evolve(YYYY-MM-DD): <one-line summary>
 
-add:    <what was added, or "none">    (evidence: <journal refs or commit hashes>)
-forget: <what was removed, or "none">  (reason: <why it no longer earns its place>)
+upgrade: <what was added or edited, or "none">  (evidence: <journal refs or commit hashes>)
+forget:  <what was removed, or "none">          (reason: <why it no longer earns its place>)
 ```
 
 If both phases produced zero changes → **do not commit**. Silent no-op is the correct outcome on a quiet day.
