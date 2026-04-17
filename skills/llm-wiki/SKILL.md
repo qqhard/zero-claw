@@ -1,6 +1,6 @@
 ---
 name: llm-wiki
-description: "Karpathy-style LLM wiki — an incremental, LLM-compiled knowledge base. Use when the user asks to ingest raw notes into their wiki, recompile stale wiki pages, search their knowledge base, or lint wiki consistency. Wiki lives in `<vault>/_wiki/`, raw notes are everything else under the vault."
+description: "Karpathy-style LLM wiki — an incremental, LLM-compiled knowledge base, co-maintained by human and bot. Use when the user asks to ingest raw notes into their wiki, recompile stale wiki pages, search their knowledge base, lint wiki consistency, or when the bot decides to capture durable context from conversation/memory into the vault as a new raw source. Wiki lives in `<vault>/_wiki/`, raw notes are everything else under the vault."
 user-invocable: true
 allowed-tools:
   - Read
@@ -19,11 +19,29 @@ Implementation of Karpathy's LLM Wiki pattern (https://gist.github.com/karpathy/
 
 The wiki is a **persistent, compounding artifact** — not re-derived on every query. Three layers:
 
-- **Raw sources** (`<vault>/` minus `_wiki/`): your curated collection. Immutable — the LLM reads from them, never rewrites.
+- **Raw sources** (`<vault>/` minus `_wiki/`): the source collection, **co-maintained by human and bot** (see below). Once a raw note exists, it's treated as source of truth for the wiki compiler — edits to it are rare and deliberate.
 - **Wiki** (`<vault>/_wiki/`): LLM-generated, LLM-owned markdown. Summaries, entity pages, concept pages, connections. You read it; the LLM writes it.
 - **Schema** (this `SKILL.md`): the conventions and workflows. Co-evolves with the user.
 
-The human curates sources and asks questions. The LLM does the bookkeeping — summarizing, cross-referencing, filing, maintaining consistency — because that's what kills human-maintained wikis.
+The human curates sources, asks questions, and drives direction. The LLM does the bookkeeping — summarizing, cross-referencing, filing, maintaining consistency — *and*, when warranted, the LLM also promotes its own running context into new raw sources (see "Raw sources: co-maintained"). That's what kills human-maintained wikis: the maintenance burden grows faster than the value. Here it doesn't, because the LLM carries it.
+
+## Raw sources: co-maintained
+
+Karpathy's original pattern treats raw sources as purely human-curated and immutable. We relax that: **raws can originate from either human or bot**.
+
+**Where raws come from**:
+
+- **Human-added** — articles clipped in Obsidian, meeting notes, journal entries, papers, whatever the user drops into the vault. Placed anywhere under `<vault>/` (except `_wiki/`) in whatever structure the user prefers.
+- **Bot-captured** — consolidations the bot itself writes to the vault when a running conversation, memory entry, or recurring theme is worth preserving as a durable source. See op §0 Capture.
+
+**Attribution**:
+
+- Use frontmatter `origin:` — `human` (default, may be omitted), `bot`, or `imported` (e.g. web-clip). The bot-written raws carry `origin: bot` and `captured: YYYY-MM-DD` so the user can review them at any time.
+- Default directory for bot-captured raws: `<vault>/captured/YYYY/MM/<slug>.md`. If the user's vault already has a folder convention (e.g. `<vault>/notes/` for raws), ask once, record the choice in the vault's `CLAUDE.md` or an adjacent schema note, and follow it thereafter.
+
+**Invariant**: once a raw exists (from either origin), both sides treat it the same — it's compiled into the wiki via Ingest, tracked via `sources:` dep edges, and only edited in rare, deliberate ways. The *origin* is metadata, not a lifecycle distinction.
+
+**Boundary with `evolve`**: `evolve` maintains the bot's own memory (`memory/`, `SOUL.md`, self-skills). `llm-wiki` maintains the shared knowledge vault. When the bot decides something in its private memory has grown to deserve *shared* preservation (durable, queryable, cross-linked), Capture promotes it from `memory/` into the vault — that's where the two skills meet.
 
 ## Two navigation files (live in `_wiki/`)
 
@@ -32,8 +50,9 @@ The human curates sources and asks questions. The LLM does the bookkeeping — s
 
 ## Our additions on top of Karpathy
 
-Not in the original gist — ours, for heartbeat-driven automation:
+Not in the original gist — ours, for an always-on Telegram-bot use case:
 
+- **Co-maintained raws** — bot can Capture durable context into the vault's raw layer, not just Ingest what the user provides.
 - **`sources:` dependency edge** in page frontmatter → the `meta.json` Makefile knows which pages go stale when a raw changes.
 - **Recompile** op (§2) — incremental invalidation of dirty pages.
 - **Maintain** op (§5) — janitor that runs on heartbeat, silent unless something needs attention.
@@ -52,6 +71,47 @@ Every operation expects a vault path. Find it from:
 Scripts live in `<skill>/scripts/`. Run them with `node`.
 
 ## Operations
+
+### 0. Capture — promote bot context into a raw source
+
+Use when the bot has accumulated material (chat, journal, memory entry, recurring theme) that deserves to live as a durable raw source in the vault, not just in `memory/`. Capture **writes a new raw .md** and then hands off to Ingest.
+
+**When to Capture** (any of the following):
+
+- The user explicitly says "remember this as a note" / "保存下来" / "记到 wiki 原始区".
+- A multi-turn exchange produced a consolidated fact/analysis/decision that you'll want to cite later, and no existing raw or wiki page holds it.
+- `evolve` surfaces a recurring topic in journals/memory that has outgrown the bot-private memory format (structured enough to become a source, queryable to the user, worth cross-linking in the wiki).
+- The user sends in free-form content ("here's what I've been thinking about X...") and asks to file it.
+
+Do **not** Capture when:
+
+- The material belongs in `memory/`, `SOUL.md`, or a self-skill — that's `evolve`'s scope. Capture is only for vault-worthy content.
+- The content is ephemeral or trivially re-derivable.
+- A matching raw or wiki page already captures it (extend that instead).
+
+**How to Capture**:
+
+1. Pick destination. Default: `<vault>/captured/<YYYY>/<MM>/<slug>.md`. If the vault has a schema note declaring a different folder for bot-captured content, follow it.
+2. Write the raw with frontmatter:
+   ```yaml
+   ---
+   title: <short descriptive title>
+   origin: bot
+   captured: YYYY-MM-DD
+   basis: <one-line what this was distilled from — "chat 2026-04-17" / "memory/foo.md superseded" / "journal pattern over last 7 days">
+   ---
+   ```
+3. Body: the content itself, in prose or structured sections. Don't over-format — Ingest will extract what matters when it compiles this into wiki pages. Aim for a clean, self-contained note someone could read independently.
+4. Append to `_wiki/log.md`:
+   ```
+   ## [YYYY-MM-DD HH:MM] capture | <title>
+   - path: captured/YYYY/MM/slug.md
+   - basis: <same as frontmatter>
+   ```
+5. Immediately proceed to **Ingest** (§1) with the new raw as input. Capture-without-Ingest leaves the wiki untouched; both halves should happen in one motion.
+6. Report to the user: what was captured, where it landed, what wiki pages changed as a result. The user can review `captured/` later and delete/edit anything that shouldn't have been saved.
+
+**Size discipline**: one Capture = one focused topic in one file. If the material spans topics, write multiple files. Don't dump an entire chat transcript.
 
 ### 1. Ingest `<raw-path>` — compile new source
 
@@ -201,6 +261,9 @@ confidence: high | medium | low   # optional
 - Rewriting a whole page when one section changed → wasteful; edit the affected section.
 - Creating a new page when an existing one would do (silent duplication).
 - Forgetting to update `_wiki/index.md` on Ingest → future queries miss the page.
+- Capturing without Ingesting → raw file sits in `captured/` and never makes it into the compiled wiki; the point of Capture is the round-trip.
+- Capturing content that belongs in `memory/` / `SOUL.md` / self-skills instead → that's `evolve`'s scope, not the vault. Capture is only for durable, shareable source material.
+- Bulk-dumping a chat transcript as a single Capture → one file per focused topic, not one file per session.
 - Letting valuable Query synthesis live only in chat → exploration doesn't compound, and you'll re-derive the same answer next week.
 - Copying raw source text wholesale into wiki pages → wiki becomes a mirror, not a synthesis. Summarize, connect, cite back.
 - Silently overwriting a claim when a new source contradicts an old one → record both, let the user (or a later pass) decide.
