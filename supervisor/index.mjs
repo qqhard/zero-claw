@@ -94,16 +94,28 @@ function pushToUsers(text) {
 }
 
 // --- Bot manager + shared command layer ---
+// Two command surfaces: Telegram has the full command set (including
+// `monitor`), CLI has everything except `monitor` (see commands.mjs — monitor
+// pushes pane diffs into Telegram, so invoking it from the local CLI is a
+// category error).
 const manager = createBotManager({
   bots: BOTS,
   config: MANAGER_CONFIG,
   onEvent: pushToUsers,
 });
 
-const commands = createCommands({
+const telegramCommands = createCommands({
   bots: BOTS,
   manager,
   config: MANAGER_CONFIG,
+  surface: 'telegram',
+});
+
+const cliCommands = createCommands({
+  bots: BOTS,
+  manager,
+  config: MANAGER_CONFIG,
+  surface: 'cli',
 });
 
 // --- Telegram Bot ---
@@ -115,7 +127,7 @@ const tg = HEADLESS ? null : new Telegraf(BOT_TOKEN);
 async function dispatchTelegram(ctx, cmd) {
   const args = ctx.message.text.split(/\s+/).slice(1);
   try {
-    const text = await commands.dispatch(cmd, args);
+    const text = await telegramCommands.dispatch(cmd, args);
     await ctx.reply(text);
   } catch (err) {
     if (err instanceof UserError) return ctx.reply(err.message);
@@ -148,13 +160,12 @@ if (!HEADLESS) {
 }
 
 // --- Local Unix-socket surface ---
-// Same command dispatcher as Telegram — used by `supervisor/zeroclaw` (the
-// shell CLI) so that `./supervisor/zeroclaw <cmd>` drives the exact same
-// code paths as the Telegram bot (shared manager state, shared restart counter, shared
-// monitor registry). Listens at `<cwd>/.zero-claw-supervisor.sock`; cwd is
-// set by pm2 from ecosystem.config.cjs → `cwd: __dirname`, i.e. the project
-// root. Permissions are 0600: anyone with filesystem access to the project
-// dir can manage its bots, no wider.
+// Same dispatcher as Telegram but against the `cliCommands` instance, so
+// Telegram-only commands (`monitor`) are hidden from `supervisor/zeroclaw`.
+// Listens at `<cwd>/.zero-claw-supervisor.sock`; cwd is set by pm2 from
+// ecosystem.config.cjs → `cwd: __dirname`, i.e. the project root.
+// Permissions are 0600: anyone with filesystem access to the project dir
+// can manage its bots, no wider.
 const SOCKET_PATH = path.join(process.cwd(), '.zero-claw-supervisor.sock');
 
 function unlinkSocket() {
@@ -170,6 +181,7 @@ unlinkSocket(); // clear stale socket from a previous crash
 const socketServer = net.createServer((sock) => {
   let buf = '';
   sock.setEncoding('utf-8');
+  sock.on('error', () => {}); // ignore client disconnects
   sock.on('data', (chunk) => {
     buf += chunk;
     const nl = buf.indexOf('\n');
@@ -184,7 +196,7 @@ const socketServer = net.createServer((sock) => {
         return;
       }
       try {
-        const text = await commands.dispatch(req.cmd, req.args || []);
+        const text = await cliCommands.dispatch(req.cmd, req.args || []);
         sock.end(JSON.stringify({ text }) + '\n');
       } catch (err) {
         if (err instanceof UserError) {
@@ -196,7 +208,6 @@ const socketServer = net.createServer((sock) => {
       }
     })();
   });
-  sock.on('error', () => {}); // ignore client disconnects
 });
 
 socketServer.listen(SOCKET_PATH, () => {

@@ -348,20 +348,74 @@ export function createBotManager({ bots, config, onEvent = () => {} }) {
     }
   }
 
-  // Line-level diff: return lines present in `current` that weren't in `prev`.
-  // Prefix/substring matching breaks because the TUI's bottom chrome (input box,
-  // status line with live time) mutates slightly between captures and middle
-  // content grows in-place — there's no single stable anchor. Set-diff on lines
-  // filters stable chrome and reports only additions, in original order.
+  // Claude Code's TUI renders a few stable "chrome" lines at the bottom of
+  // the visible pane — input box, separator bars, the bypass-permissions
+  // banner, the thinking-spinner ("✶ Incubating…", "* Fiddle-faddling…"),
+  // the queued-messages indicator. They redraw on every frame with subtly
+  // different text, so a line-equality diff treats each frame as "new
+  // content" and the monitor ends up pushing the whole screen every tick.
+  // Recognizing chrome by shape and stripping it from the tail of each
+  // capture before diffing leaves just scrollback + stable visible content,
+  // which IS append-only and aligns cleanly.
+  const CHROME_LINE =
+    /^(?:|\s*─+|❯\s*|\s*⏵⏵.*|\s*[*·✶✻✽⋯◉]\s.*|\s*←\s+\w+.*|\s*▎\s.*|\s*You've used \d+%.*|\s*\(.*(?:ctrl|shift|alt|esc)\b.*\).*)$/;
+
+  function stripTrailingChrome(lines) {
+    let n = lines.length;
+    while (n > 0 && CHROME_LINE.test(lines[n - 1])) n--;
+    return lines.slice(0, n);
+  }
+
+  // Shift-aware prefix alignment on chrome-stripped captures.
+  //
+  // After stripping chrome, what remains is scrollback plus stable visible
+  // content — effectively append-only between ticks. So `curr` equals
+  // `prev` (idle) or `prev` shifted down by k lines is a prefix of `curr`
+  // (k = lines added since the last tick, k >= 0). If the capture window
+  // overflowed, k > 0 represents how many old lines fell off the top.
+  //
+  // Trick: find the smallest k such that `prev[k..]` is a prefix of
+  // `curr[..len(prev)-k]`. Anything in `curr` past the aligned region is
+  // the new content. O(N^2) worst case; N is bounded by the capture
+  // window (<=500 lines) so ~250k comparisons per tick — not measurable.
+  //
+  // Earlier attempts (set diff, multiset diff, plain prefix+suffix trim)
+  // all either lost position information or failed once the pane grew
+  // past the capture window.
   function extractNewContent(prev, current) {
     if (!prev || !current) return null;
     if (prev === current) return null;
-    const prevSet = new Set(prev.split('\n').map((l) => l.trimEnd()));
+    const prevLines = stripTrailingChrome(
+      prev.split('\n').map((l) => l.trimEnd())
+    );
+    const currLines = stripTrailingChrome(
+      current.split('\n').map((l) => l.trimEnd())
+    );
+    if (prevLines.length === 0 && currLines.length === 0) return null;
+
+    let shift = -1;
+    for (let k = 0; k <= prevLines.length; k++) {
+      const cmpLen = prevLines.length - k;
+      if (cmpLen > currLines.length) continue;
+      let match = true;
+      for (let i = 0; i < cmpLen; i++) {
+        if (prevLines[k + i] !== currLines[i]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        shift = k;
+        break;
+      }
+    }
+    if (shift === -1) return null;
+
+    const alignedEnd = prevLines.length - shift;
     const additions = [];
-    for (const raw of current.split('\n')) {
-      const line = raw.trimEnd();
+    for (let i = alignedEnd; i < currLines.length; i++) {
+      const line = currLines[i];
       if (!line) continue;
-      if (prevSet.has(line)) continue;
       additions.push(line);
     }
     if (additions.length === 0) return null;

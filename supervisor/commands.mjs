@@ -7,10 +7,16 @@
 // Output is plain text. Telegram's MarkdownV2 is strict and easy to break;
 // template/CLAUDE.md explicitly asks us to default to plain text. Dropping
 // HTML here keeps the two surfaces (Telegram + CLI) byte-identical.
+//
+// `surface` selects which commands are exposed. `monitor` is Telegram-only:
+// it pushes pane diffs back to Telegram, which is where they're useful.
+// Running it from the CLI would just enable Telegram pushes you can't see
+// locally, so the CLI surface hides the subcommand altogether.
 
 export class UserError extends Error {}
 
-export function createCommands({ manager, bots, config }) {
+export function createCommands({ manager, bots, config, surface = 'telegram' }) {
+  const includeMonitor = surface !== 'cli';
   const botsByName = new Map(bots.map((b) => [b.name, b]));
 
   function resolveBot(name) {
@@ -169,18 +175,20 @@ export function createCommands({ manager, bots, config }) {
         bots.length > 1
           ? `\n\nBots: ${bots.map((b) => b.name).join(', ')}\nAdd bot name after the subcommand, e.g. status ${bots[0].name}`
           : '';
-      return (
-        'status [bot] - Status, restart counter, context usage\n' +
-        'restart [bot] - Restart bot\n' +
-        'start [bot] - Start bot (re-enables auto-restart)\n' +
-        'stop [bot] - Stop bot\n' +
-        'logs [bot] - Recent logs (80 lines)\n' +
-        'screen [bot] - Current screen (30 lines)\n' +
-        'send [bot] <text> - Type text into the bot TUI\n' +
-        'monitor [on|off|status] [bot] [seconds] - Push new pane output\n' +
-        'help - This message' +
-        botHint
-      );
+      const lines = [
+        'status [bot] - Status, restart counter, context usage',
+        'restart [bot] - Restart bot',
+        'start [bot] - Start bot (re-enables auto-restart)',
+        'stop [bot] - Stop bot',
+        'logs [bot] - Recent logs (80 lines)',
+        'screen [bot] - Current screen (30 lines)',
+        'send [bot] <text> - Type text into the bot TUI',
+      ];
+      if (includeMonitor) {
+        lines.push('monitor [on|off|status] [bot] [seconds] - Push new pane output');
+      }
+      lines.push('help - This message');
+      return lines.join('\n') + botHint;
     },
   };
 
@@ -220,6 +228,9 @@ export function createCommands({ manager, bots, config }) {
       }
 
       case 'monitor': {
+        if (!includeMonitor) {
+          throw new UserError(`Unknown command: ${cmd}\nTry 'help'`);
+        }
         const act = args[0] || 'status';
         let rest = args.slice(1);
         let botName;
