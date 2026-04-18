@@ -46,7 +46,7 @@ Call TaskCreate 14 times to create all tasks. Do this immediately, before greeti
 - TaskCreate("Check Telegram plugin")
 - TaskCreate("Name your assistant")
 - TaskCreate("Shape assistant persona (role, personality, notes)")
-- TaskCreate("Create two Telegram bots (main + supervisor)")
+- TaskCreate("Create two Telegram bots (assistant + Supervisor)")
 - TaskCreate("Get Telegram user ID")
 - TaskCreate("Collect user info (name, timezone)")
 - TaskCreate("Choose working directory")
@@ -177,16 +177,27 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    - speaking + thinking + execution answers woven together → `## Core Truths` personality paragraph (above the baseline bullet principles)
    - free-form extras → `## Notes from the User` (leave placeholder text if the user picked Skip)
 
-6. **Create two Telegram bots**: You need two bots. Explain why:
-   - **Main bot** — your assistant's face, for daily conversation.
-   - **Supervisor bot** — remote control for when the main bot is unresponsive. Lets you restart, check status, view logs.
+6. **Create two Telegram bots**: lead with the *scenario*, not the labels. Frame it like this (translate to the user's language):
+
+   > You'll create two Telegram bots in BotFather. Here's why two:
+   >
+   > 1. **`<AssistantName>` itself** — the bot you chat with every day. When you DM it, `<AssistantName>` answers.
+   > 2. **A Supervisor bot** — think of it as a monitoring channel. If `<AssistantName>` ever hangs, crashes, or stops replying, you can't ask it to fix itself — you DM the Supervisor bot instead. It can restart `<AssistantName>`, show status, tail logs.
+   >
+   > Two bots, not one, because the out-of-band channel has to survive the main one being broken.
+
+   Always refer to them concretely in user-facing prose — never say "main bot" alone (it's vague):
+   - Bot #1: **`<AssistantName>` bot** (or just the assistant's name).
+   - Bot #2: **Supervisor bot** — in Chinese pair it with **监控** (e.g. "Supervisor（监控）bot"), in Japanese **監視**. The English word "Supervisor" stays in every language as the recognizable term; the parenthesized native word makes its *purpose* (monitoring the first bot) obvious.
+
+   Do them **one at a time** — never ask the user to create both in the same round. Finish bot #1 (BotFather walk-through → token collected → confirmed) before even mentioning bot #2. Two BotFather dances back-to-back confuse people about which token belongs where.
 
    For **each** bot, guide the user through BotFather step by step:
 
    > 1. Open Telegram and search for [@BotFather](https://t.me/BotFather)
    > 2. Send `/newbot`
-   > 3. BotFather asks for a **display name** — suggest: `<AssistantName>` for main, `<AssistantName> Supervisor` for supervisor
-   > 4. BotFather asks for a **username** (must end in `bot`) — suggest: `<name>_bot` for main, `<name>_supervisor_bot` for supervisor (use the assistant name lowercase, try variations if taken)
+   > 3. BotFather asks for a **display name** — suggest: `<AssistantName>` for bot #1, `<AssistantName> Supervisor` for bot #2
+   > 4. BotFather asks for a **username** (must end in `bot`) — suggest: `<name>_bot` for bot #1, `<name>_supervisor_bot` for bot #2 (use the assistant name lowercase, try variations if taken)
    > 5. BotFather replies with the token — copy it
 
    Then ask how they want to provide the token. Present options:
@@ -196,7 +207,7 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
 
    If the user skips either bot token, write the current setup state to `<cwd>/.zero-claw-setup.json` with collected values so far (language, assistant name, any tokens already provided, etc.). When setup is run again, check for this file first and resume from where the user left off — pre-fill known values and only ask for missing ones.
 
-   After collecting each token, confirm back: "✓ Main bot token: `<first 8 chars>...` — @username" (or "✓ Supervisor bot token: ...").
+   After collecting each token, confirm back using the concrete label: "✓ `<AssistantName>` bot token: `<first 8 chars>...` — @username" (or "✓ Supervisor bot token: ...").
 
 7. **User ID**: Ask the user to message [@userinfobot](https://t.me/userinfobot) on Telegram. They can paste the entire reply — extract the numeric `Id` field yourself. Same skip option applies — save state if skipped.
 
@@ -298,9 +309,9 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
 
       Do NOT just sleep 15s and blindly send "start" — in bypass mode the permission modal swallows the keystroke. Always verify the pane state by capture-pane before sending.
     - Tell the user: "Your bot is starting up. You can watch it with: `tmux attach -t <name>`"
-    - **Verify supervisor bot is reachable** before moving on to main-bot pairing. This is a hard gate — if `/status` doesn't reply now, pairing the main bot next will just mask whatever is wrong with the supervisor.
-      > "Open Telegram and DM **@<supervisor-bot-username>** with `/help` (or `/status`). Paste the reply back here so I can confirm the supervisor is alive."
-      When the user pastes the reply, check it looks like the supervisor's menu (mentions `/status`, `/restart`, `/logs`, etc.). If nothing comes back, diagnose before continuing: `pm2 logs <dirname>-supervisor --lines 40`, check `ecosystem.config.cjs` token, check the user_id is in `ALLOWED_USERS`.
+    - **Verify the Supervisor bot is reachable** before moving on to pairing `<AssistantName>`. This is a hard gate — if `/status` doesn't reply now, pairing `<AssistantName>` next will just mask whatever is wrong with the Supervisor channel.
+      > "Open Telegram and DM **@<supervisor-bot-username>** with `/help` (or `/status`). Paste the reply back here so I can confirm the Supervisor bot is alive."
+      When the user pastes the reply, check it looks like the Supervisor bot's menu (mentions `/status`, `/restart`, `/logs`, etc.). If nothing comes back, diagnose before continuing: `pm2 logs <dirname>-supervisor --lines 40`, check `ecosystem.config.cjs` token, check the user_id is in `ALLOWED_USERS`.
 
 12. **Pair Telegram** — **the pairing step waits for a HUMAN, not for the bot.** The bot sits silently waiting for a Telegram DM; there is no progress signal to poll. Do not background-poll the tmux pane.
 
