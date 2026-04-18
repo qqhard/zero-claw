@@ -43,7 +43,11 @@ if (!root) {
 const sockPath = path.join(root, '.zero-claw-supervisor.sock');
 if (!fs.existsSync(sockPath)) {
   die(
-    `Supervisor not running: ${sockPath} not found. Try: pm2 start ecosystem.config.cjs`
+    `Supervisor socket not found: ${sockPath}\n` +
+      `\n` +
+      `If the supervisor isn't running:   pm2 start ecosystem.config.cjs\n` +
+      `If it's running a pre-0.19 copy:   /zero-claw:upgrade  (or replace\n` +
+      `  supervisor/ from \$CLAUDE_PLUGIN_ROOT/supervisor and pm2 restart).`
   );
 }
 
