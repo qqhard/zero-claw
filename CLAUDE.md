@@ -40,28 +40,18 @@ Don't build what already exists. Compose.
 
 ## First-Run Setup
 
-On first launch, detect unconfigured state and guide the user interactively.
+On first launch, detect unconfigured state and guide the user interactively. The canonical sequence lives in `skills/setup/SKILL.md` — this section is a high-level summary.
 
-**Detection**: `ecosystem.config.cjs` has empty `SUPERVISOR_BOT_TOKEN`, or `CLAUDE.md` still matches `template/CLAUDE.md`.
+**Detection**: the bot directory's `CLAUDE.md` still matches `template/CLAUDE.md` (fresh install). As of 0.18 an empty `SUPERVISOR_BOT_TOKEN` is NOT an "unconfigured" signal — supervisor runs headless by default and the Supervisor remote-control bot is an opt-in final step.
 
-**Flow**:
+**Flow** (summary):
 
-1. Greet the user. Explain what Zero-Claw does in 2 sentences.
-2. Ask preferred language (the rest of setup continues in that language).
-3. Check prerequisites: `tmux --version`, `node --version`, `pm2 --version`, `bun --version`. If missing, tell the user what to install and wait.
-4. Check if Telegram plugin is installed (`claude plugins list` or check plugin directory). If not, run `claude plugins install telegram` and guide the user through pairing.
-5. Ask for **supervisor bot token** (link to @BotFather with instructions).
-6. Ask for **Telegram user_id** (link to @userinfobot).
-7. Ask for user's **name** and **timezone**.
-8. Generate configs:
-   - Write `ecosystem.config.cjs` with supervisor token, user_id, tmux session name.
-   - Copy `template/CLAUDE.md` to the bot directory **verbatim** (no placeholder filling, no translation). Fill user-specific values into `SOUL.md`, `USER.md` instead.
-9. Install supervisor dependencies: `cd supervisor && npm install`.
-10. Start supervisor: `pm2 start ecosystem.config.cjs && pm2 save`.
-11. Confirm setup complete. Tell user to launch via tmux next time:
-    ```
-    tmux new-session -s <assistant-name> -c <working-dir> './start.sh'
-    ```
+1. Greet; pick language.
+2. Check prerequisites (tmux, node, pm2, bun) and Telegram plugin.
+3. Ask for the **assistant bot token** via @BotFather — one bot at this stage. Collect Telegram user_id, name, timezone.
+4. Generate files. `ecosystem.config.cjs` ships with `SUPERVISOR_BOT_TOKEN` empty; `ALLOWED_USERS` is pre-populated so step 6 below only needs the token.
+5. Start supervisor headless: `pm2 start ecosystem.config.cjs && pm2 save` — verify `pm2 logs` shows `Supervisor started [headless — no remote control bot]`. Launch the assistant bot and pair it over Telegram.
+6. **Optional**: offer to add a Supervisor remote-control bot. Only if the user accepts, create a second BotFather bot, write `SUPERVISOR_BOT_TOKEN` into `ecosystem.config.cjs`, `pm2 restart <dirname>-supervisor --update-env`, and verify `/help` reaches it.
 
 **Important**: Do NOT auto-launch `start.sh` during first-run setup — the user is already in an interactive Claude session. Just prepare everything so the next `./start.sh` works.
 

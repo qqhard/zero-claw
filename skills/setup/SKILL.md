@@ -38,6 +38,8 @@ When the user must paste something (bot token, user ID), ask for the paste direc
 
 Check if `<cwd>/.zero-claw-setup.json` exists. If it does, this is a **resumed setup** — read the file, pre-fill all previously collected values, and skip completed steps. Greet the user with "Welcome back! Picking up where you left off." and show what's already configured vs. what's still needed.
 
+If that file is absent but `<cwd>/ecosystem.config.cjs` already exists AND its `SUPERVISOR_BOT_TOKEN` is empty, the user has a fully-configured headless project and probably wants to add the Supervisor remote-control bot they skipped (or that a pre-0.18 setup predated). Greet with "Your assistant is already set up and the supervisor is running headless. Want to add the Supervisor remote-control bot now?" and **jump directly to step 13** — do NOT rerun the assistant-bot wizard. If the user declines, exit cleanly.
+
 Call TaskCreate 14 times to create all tasks. Do this immediately, before greeting the user or asking any questions. For resumed setups, mark already-completed tasks as `completed` right away:
 
 - TaskCreate("Pre-authorize setup permissions")
@@ -46,7 +48,7 @@ Call TaskCreate 14 times to create all tasks. Do this immediately, before greeti
 - TaskCreate("Check Telegram plugin")
 - TaskCreate("Name your assistant")
 - TaskCreate("Shape assistant persona (role, personality, notes)")
-- TaskCreate("Create two Telegram bots (assistant + Supervisor)")
+- TaskCreate("Create assistant Telegram bot")
 - TaskCreate("Get Telegram user ID")
 - TaskCreate("Collect user info (name, timezone)")
 - TaskCreate("Choose working directory")
@@ -54,6 +56,7 @@ Call TaskCreate 14 times to create all tasks. Do this immediately, before greeti
 - TaskCreate("Generate project files")
 - TaskCreate("Start supervisor & launch")
 - TaskCreate("Pair Telegram")
+- TaskCreate("Optional: add Supervisor remote-control bot")
 
 Then for each step below: TaskUpdate → `in_progress` when starting, `completed` when done.
 
@@ -177,27 +180,18 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    - speaking + thinking + execution answers woven together → `## Core Truths` personality paragraph (above the baseline bullet principles)
    - free-form extras → `## Notes from the User` (leave placeholder text if the user picked Skip)
 
-6. **Create two Telegram bots**: lead with the *scenario*, not the labels. Frame it like this (translate to the user's language):
+6. **Create the assistant's Telegram bot**: only one bot in this step — `<AssistantName>` itself, the bot the user will DM every day. A *second* bot (Supervisor remote control) is optional and offered after the assistant is live (step 13) — do NOT bring it up here, do NOT pre-create it. Framing (translate to the user's language):
 
-   > You'll create two Telegram bots in BotFather. Here's why two:
-   >
-   > 1. **`<AssistantName>` itself** — the bot you chat with every day. When you DM it, `<AssistantName>` answers.
-   > 2. **A Supervisor bot** — think of it as a monitoring channel. If `<AssistantName>` ever hangs, crashes, or stops replying, you can't ask it to fix itself — you DM the Supervisor bot instead. It can restart `<AssistantName>`, show status, tail logs.
-   >
-   > Two bots, not one, because the out-of-band channel has to survive the main one being broken.
+   > Let's create the Telegram bot you'll chat with. Open Telegram, DM BotFather, and it'll hand you a token.
 
-   Always refer to them concretely in user-facing prose — never say "main bot" alone (it's vague):
-   - Bot #1: **`<AssistantName>` bot** (or just the assistant's name).
-   - Bot #2: **Supervisor bot** — in Chinese pair it with **监控** (e.g. "Supervisor（监控）bot"), in Japanese **監視**. The English word "Supervisor" stays in every language as the recognizable term; the parenthesized native word makes its *purpose* (monitoring the first bot) obvious.
+   Always refer to the bot concretely as **`<AssistantName>` bot** (or just the assistant's name) — never "main bot" alone.
 
-   Do them **one at a time** — never ask the user to create both in the same round. Finish bot #1 (BotFather walk-through → token collected → confirmed) before even mentioning bot #2. Two BotFather dances back-to-back confuse people about which token belongs where.
-
-   For **each** bot, guide the user through BotFather step by step:
+   Guide the user through BotFather step by step:
 
    > 1. Open Telegram and search for [@BotFather](https://t.me/BotFather)
    > 2. Send `/newbot`
-   > 3. BotFather asks for a **display name** — suggest: `<AssistantName>` for bot #1, `<AssistantName> Supervisor` for bot #2
-   > 4. BotFather asks for a **username** (must end in `bot`) — suggest: `<name>_bot` for bot #1, `<name>_supervisor_bot` for bot #2 (use the assistant name lowercase, try variations if taken)
+   > 3. BotFather asks for a **display name** — suggest: `<AssistantName>`
+   > 4. BotFather asks for a **username** (must end in `bot`) — suggest: `<name>_bot` (assistant name lowercase; try variations if taken)
    > 5. BotFather replies with the token — copy it
 
    Then ask how they want to provide the token. Present options:
@@ -205,9 +199,9 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
    - **Paste BotFather's full reply** — parse the token using regex: `/\d+:[A-Za-z0-9_-]{35,}/`
    - **Skip for now** — save progress and continue; they can provide it later by running `/zero-claw:setup` again
 
-   If the user skips either bot token, write the current setup state to `<cwd>/.zero-claw-setup.json` with collected values so far (language, assistant name, any tokens already provided, etc.). When setup is run again, check for this file first and resume from where the user left off — pre-fill known values and only ask for missing ones.
+   If the user skips the token, write the current setup state to `<cwd>/.zero-claw-setup.json` with collected values so far (language, assistant name, etc.). When setup is run again, check for this file first and resume — pre-fill known values and only ask for missing ones.
 
-   After collecting each token, confirm back using the concrete label: "✓ `<AssistantName>` bot token: `<first 8 chars>...` — @username" (or "✓ Supervisor bot token: ...").
+   After collecting the token, confirm back using the concrete label: "✓ `<AssistantName>` bot token: `<first 8 chars>...` — @username".
 
 7. **User ID**: Ask the user to message [@userinfobot](https://t.me/userinfobot) on Telegram. They can paste the entire reply — extract the numeric `Id` field yourself. Same skip option applies — save state if skipped.
 
@@ -236,7 +230,7 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
 
    In the **parent directory** (current working directory):
    - Copy `$CLAUDE_PLUGIN_ROOT/supervisor/` → `supervisor/`, run `npm install`.
-   - Generate `ecosystem.config.cjs` with supervisor bot token, user_id, `BOTS` set to `"<name>:<name>:<cwd>/<name>"`, and **`TZ` set to the user's timezone from step 7** (IANA name, e.g. `'Asia/Singapore'`). The `TZ` env is what keeps the supervisor scheduler (SLEEP_AT / DAILY_RESTART_AT) aligned with the user's local wall clock even if pm2 later runs inside a container or on a machine with a different host TZ — without it the scheduler silently drifts. **The pm2 app name MUST be `<dirname>-supervisor`** where `<dirname>` is the project root directory name (e.g. if cwd is `/home/user/my-project`, use `my-project-supervisor`). Do NOT use the assistant name — a project can have multiple bots but only one supervisor. Before finalizing, run `pm2 jlist` to check for name collisions; if the name is taken, append a suffix or ask the user.
+   - Generate `ecosystem.config.cjs` with `BOTS` set to `"<name>:<name>:<cwd>/<name>"`, **`TZ` set to the user's timezone from step 8** (IANA name, e.g. `'Asia/Singapore'`), `ALLOWED_USERS` set to the user_id from step 7 (so it's ready if a Supervisor bot is added later), and **`SUPERVISOR_BOT_TOKEN` LEFT EMPTY**. The supervisor runs *headless* by default — watchdog, context-check, sleep trigger and daily restart all still run; only the Telegram remote-control surface is off. Step 13 walks the user through adding a Supervisor bot if they want one. The `TZ` env keeps the supervisor scheduler aligned with the user's local wall clock even if pm2 later runs inside a container with a different host TZ. **The pm2 app name MUST be `<dirname>-supervisor`** where `<dirname>` is the project root directory name (e.g. if cwd is `/home/user/my-project`, use `my-project-supervisor`). Do NOT use the assistant name — a project can have multiple bots but only one supervisor. Before finalizing, run `pm2 jlist` to check for name collisions; if the name is taken, append a suffix or ask the user.
    
    In the **bot directory** (`<cwd>/<name>/`):
    - Copy `$CLAUDE_PLUGIN_ROOT/template/CLAUDE.md` → `CLAUDE.md` **verbatim**. Do NOT fill any placeholders and do NOT translate it — this file has no placeholders anymore; it's the system mechanism, identical across all bots.
@@ -309,12 +303,7 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
 
       Do NOT just sleep 15s and blindly send "start" — in bypass mode the permission modal swallows the keystroke. Always verify the pane state by capture-pane before sending.
     - Tell the user: "Your bot is starting up. You can watch it with: `tmux attach -t <name>`"
-    - **Verify the Supervisor bot is reachable — this is a hard gate.** Do NOT skip it, do NOT postpone it until after pairing, and do NOT bundle it with any other user-facing test. It gets its own round: one message asking for one thing, then wait.
-      > "Open Telegram and DM **@<supervisor-bot-username>** with `/help` (or `/status`). Paste the reply back here so I can confirm the Supervisor bot is alive."
-
-      While this is outstanding, say nothing about pairing `<AssistantName>` yet — the user will try to do both at once and you'll lose the ability to diagnose which channel is broken. Silence until they paste the Supervisor reply.
-
-      When the user pastes the reply, check it looks like the Supervisor bot's menu (mentions `/status`, `/restart`, `/logs`, etc.). If nothing comes back, diagnose before continuing: `pm2 logs <dirname>-supervisor --lines 40`, check `ecosystem.config.cjs` token, check the user_id is in `ALLOWED_USERS`. Only once the Supervisor reply is confirmed, proceed to step 12.
+    - **Sanity-check the (headless) supervisor.** Run `pm2 logs <dirname>-supervisor --lines 20 --nostream` and confirm you see `Supervisor started [headless — no remote control bot]`. That line proves the watchdog + sleep + daily-restart scheduler is live without a Telegram channel. If it's missing or pm2 reports the app as `errored`, diagnose before continuing (check `ecosystem.config.cjs`, `supervisor/` deps, pm2 jlist for collisions). Proceed to step 12 once the line is there.
 
 12. **Pair Telegram** — **the pairing step waits for a HUMAN, not for the bot.** The bot sits silently waiting for a Telegram DM; there is no progress signal to poll. Do not background-poll the tmux pane.
 
@@ -331,7 +320,26 @@ Then for each step below: TaskUpdate → `in_progress` when starting, `completed
        - Append its `user_id` (as a string) to the `allowFrom` array. Drop the display name and chat id — they don't go into `allowFrom`.
        - Remove the matched entry from `pending`.
        - Optionally flip `dmPolicy` to `allowlist` once the user confirms no one else needs in.
-    3. Ask the user to send **one more** Telegram message to `<AssistantName>` to confirm the bot now replies normally (pairing only proves the handshake, not that the bot's main loop is responsive). This is its own round — don't mention Supervisor here; that was already verified in step 11. Wait for the user to confirm they got a reply before moving on.
+    3. Ask the user to send **one more** Telegram message to `<AssistantName>` to confirm the bot now replies normally (pairing only proves the handshake, not that the bot's main loop is responsive). This is its own round. Wait for the user to confirm they got a reply before moving on.
     4. Confirm: "Your assistant is live! Messages to @<main-bot-username> now reach it."
-    5. Give a brief tour: memory system, heartbeat, Supervisor bot `/help`.
-    6. Tell user: `tmux attach -t <name>` to watch, `Ctrl-b d` to detach.
+    5. Give a brief tour: memory system, heartbeat, `tmux attach -t <name>` to watch, `Ctrl-b d` to detach. Do NOT mention any Supervisor bot here — remote control is offered as an opt-in in step 13.
+
+13. **Optional: Supervisor remote-control bot.** The supervisor is already running in headless mode and self-manages the bot (watchdog restarts on crash, context check, sleep trigger, daily restart). The Supervisor *bot* is a separate Telegram channel that lets the user *reach* the supervisor from their phone — useful when `<AssistantName>` itself is stuck and can't be asked to fix itself. Most users don't need it on day one.
+
+    Ask via AskUserQuestion:
+    > "Your assistant is live. Want to add a Supervisor bot now so you can restart / inspect it from Telegram when it's unreachable?"
+    > - **Yes, add it now** — walks you through BotFather and wires it up.
+    > - **No, I'll skip** — supervisor keeps running headless. You can run `/zero-claw:setup` again later to add one, or edit `ecosystem.config.cjs` by hand.
+
+    If **No**: tell the user how to add it later (run `/zero-claw:setup` again; the wizard detects the existing setup and jumps straight to this step) and finish.
+
+    If **Yes**:
+    1. Frame it concretely — refer to it as **Supervisor bot** in English. In Chinese pair with **监控** ("Supervisor（监控）bot"), in Japanese with **監視**. The English word stays in every language as the recognizable term; the parenthesized native word makes its *purpose* (monitoring the assistant) obvious.
+    2. Walk BotFather the same way as step 6 (display name suggestion: `<AssistantName> Supervisor`; username suggestion: `<name>_supervisor_bot`). Offer the same three token-entry options (direct paste / full BotFather reply / skip-for-now).
+    3. Write the token into `ecosystem.config.cjs`'s `SUPERVISOR_BOT_TOKEN`. `ALLOWED_USERS` should already hold the user_id from step 10 — if it's empty for some reason, fill it now.
+    4. Re-read supervisor env: `pm2 restart <dirname>-supervisor --update-env`. **WARNING**: plain `pm2 restart` silently reuses the env snapshot cached at first start, so the new token is ignored without `--update-env`.
+    5. **Verify the Supervisor bot is reachable — this is a hard gate.** One message asking for one thing, then wait:
+       > "Open Telegram and DM **@<supervisor-bot-username>** with `/help` (or `/status`). Paste the reply back here so I can confirm the Supervisor bot is alive."
+
+       When the user pastes the reply, check it looks like the Supervisor bot's menu (mentions `/status`, `/restart`, `/logs`, etc.). If nothing comes back, diagnose: `pm2 logs <dirname>-supervisor --lines 40`, check the token in `ecosystem.config.cjs`, check the user_id is in `ALLOWED_USERS`.
+    6. Confirm success, add `/help` to the user's tour.

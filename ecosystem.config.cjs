@@ -8,8 +8,13 @@ module.exports = {
       max_restarts: 20,
       restart_delay: 5000,
       env: {
-        SUPERVISOR_BOT_TOKEN: '', // your supervisor bot token
-        ALLOWED_USERS: '',        // your Telegram user_id
+        // SUPERVISOR_BOT_TOKEN / ALLOWED_USERS are OPTIONAL.
+        // Leave them blank to run the supervisor headless: watchdog, context-check,
+        // sleep trigger and daily restart all still run; you just can't control
+        // them via Telegram. Fill them in (and `pm2 restart ... --update-env`) to
+        // add remote control later.
+        SUPERVISOR_BOT_TOKEN: '', // optional: supervisor bot token
+        ALLOWED_USERS: '',        // optional: your Telegram user_id (needed only if SUPERVISOR_BOT_TOKEN is set)
         WATCHDOG_INTERVAL: '60',          // seconds between liveness checks, 0 to disable
         MAX_CONSECUTIVE_RESTARTS: '5',    // give up and notify user after this many failed restarts
         CONTEXT_CHECK_INTERVAL: '86400',  // seconds between context-usage checks (24h), 0 to disable
