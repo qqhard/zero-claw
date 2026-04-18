@@ -31,7 +31,12 @@ Don't build what already exists. Compose.
 3. **Plugins are folders** — A skill is a folder with a `SKILL.md`. No npm install, no API registration. Claude Code auto-discovers it.
 4. **Memory follows git** — `memory/` is git-tracked. Clone the repo, get the memory. No external database.
 5. **Minimal code, maximum leverage** — Every line of code should justify why Claude Code can't do it natively. If Claude can handle it via markdown instructions, don't write code for it.
-6. **Templates are mechanism or personalization, never both** — `template/CLAUDE.md` is mechanism (no placeholders, identical per bot). All user-specific values live in the side files (`SOUL.md`, `USER.md`, `CRONTAB.md`, `HEARTBEAT.md`, `SLEEP.md`). Same rule for meta-skills: keep them generic so upgrades are straight copies.
+6. **Framework follows the plugin; personalization stays in side files** — Three pieces are pure framework — on upgrade they are replaced verbatim from `$CLAUDE_PLUGIN_ROOT` with at most a tiny graft of preserved values:
+   - `supervisor/` (code only) — zero customization, straight overwrite. The supervisor knows nothing user-specific at compile time; every bot-aware behavior (which bots exist, their tokens / tmux sessions / work dirs, watchdog intervals, sleep & restart schedules, timezone, context-usage thresholds) is read at runtime from `ecosystem.config.cjs`. So the *code* is framework, the *config* is personalization, and the supervisor "adapts" to each project purely through env vars.
+   - bot's `CLAUDE.md` — system mechanism, identical to `template/CLAUDE.md`. Only the two cron expressions in the Heartbeat/Sleep table are preserved.
+   - meta-skills (currently `evolve`, `llm-wiki`, `learn`) — zero customization, straight overwrite of `<bot>/.claude/skills/<name>/`.
+
+   Everything user-specific lives elsewhere: `SOUL.md`, `USER.md`, `CRONTAB.md`, `HEARTBEAT.md`, `SLEEP.md`, `memory/`, `journal/`, and `ecosystem.config.cjs` (supervisor token, Telegram user_id, BOTS list with per-bot token / session / work dir, schedule times, timezone, watchdog/context thresholds). If you're tempted to edit a framework file inside a bot or `supervisor/`, the change belongs upstream in this repo's template, not in the bot — otherwise the next `/zero-claw:upgrade` will silently revert it. The `upgrade` and `upgrade-meta-skill` skills enforce this contract.
 
 ## First-Run Setup
 
