@@ -105,42 +105,44 @@ Always present choices as numbered options for the selection bar.
    - If `pm2 describe` exits non-zero (not registered), tell the user: *"The supervisor isn't running under pm2 yet. Start it with `pm2 start ecosystem.config.cjs && pm2 save` from `<parent-dir>`, or run it under tmux directly."* — do NOT try `pm2 restart` blindly; it will silently no-op against a different project's supervisor.
    - If registered, run `pm2 restart <name> --update-env` so the new `BOTS` entry takes effect. **WARNING**: plain `pm2 restart <name>` silently reuses the env snapshot cached at first start — the supervisor will keep seeing the old `BOTS` and `/status` will never show the new bot. `--update-env` is required to re-read the `env:` block from `ecosystem.config.cjs`.
 
-8. **Launch and pair** — **read this carefully: the pairing step waits for a HUMAN, not for the bot.** The bot will sit silently waiting for the user to DM it; there is no progress signal to poll, so do not background-poll the tmux pane.
+8. **Launch and pair** — **read this carefully: the pairing step waits for a HUMAN, not for the bot.** The bot will sit silently waiting for the user to DM it; there is no progress signal to poll, so do not background-poll the tmux pane for *pairing*. (You *do* poll it for the boot-ready signal below — different thing.)
 
-   a. **Start the bot in background**:
-      ```bash
-      tmux new-session -d -s <name> -c <bot-dir> './start.sh'
-      ```
-      Wait ~15s for Claude Code to finish booting, then send `start` to fire the SessionStart hook. Target the **session** only — no `:0.0` / `:1.1` suffix — so it works whether or not the user has `base-index` / `pane-base-index` set in `~/.tmux.conf`:
-      ```bash
-      tmux send-keys -t <name> -l 'start' && tmux send-keys -t <name> Enter
-      ```
-
-   b. **Write the Telegram token directly** — do NOT use `/telegram:configure` via send-keys. That skill hardcodes `~/.claude/channels/telegram/.env` and ignores `TELEGRAM_STATE_DIR`, so it would clobber the sibling bot's global config and the new bot's server (which reads from `<bot-dir>/.telegram/`) would still see no token. Instead, write directly:
+   a. **Write the Telegram token BEFORE launching** — do NOT use `/telegram:configure` via send-keys. That skill hardcodes `~/.claude/channels/telegram/.env` and ignores `TELEGRAM_STATE_DIR`, so it would clobber the sibling bot's global config and the new bot's server (which reads from `<bot-dir>/.telegram/`) would still see no token. Write the file first so the plugin server picks it up on first boot — no `C-c` restart dance needed:
       ```bash
       mkdir -p <bot-dir>/.telegram
       printf 'TELEGRAM_BOT_TOKEN=%s\n' "<new-bot-token>" > <bot-dir>/.telegram/.env
       chmod 600 <bot-dir>/.telegram/.env
       ```
-      The bot's `start.sh` exports `TELEGRAM_STATE_DIR="$(pwd)/.telegram"`, so the plugin server picks this up automatically. Restart the bot session so the new env is loaded:
+      (The bot's `start.sh` exports `TELEGRAM_STATE_DIR="$(pwd)/.telegram"`, so the plugin server reads this file automatically.)
+
+   b. **Start the bot in background**:
       ```bash
-      tmux send-keys -t <name> 'C-c' && sleep 1 && tmux send-keys -t <name> -l './start.sh' && tmux send-keys -t <name> Enter
+      tmux new-session -d -s <name> -c <bot-dir> './start.sh'
       ```
 
-   c. **Wait for the user to pair (NOT the bot)** — say to the user **explicitly**:
+   c. **Poll the pane until the bot is ready — do NOT sleep a fixed duration.** Boot time varies from ~3s (warm caches) to ~30s+ (cold). A hardcoded `sleep 15` is wasteful when fast and broken when slow. Use `tmux capture-pane -t <name> -p` in a short polling loop (every ~2s, up to ~30s). Target the **session** only (no `:0.0` / `:1.1` suffix) so it works regardless of the user's `base-index` / `pane-base-index` settings:
+
+      1. **First-run permission modal** — because the template `start.sh` passes `--dangerously-skip-permissions`, Claude Code shows a one-time confirmation on first launch (text like "Yes, I accept" / "No, exit"). If capture-pane shows it, accept with `2` + Enter, then keep polling:
+         ```bash
+         tmux send-keys -t <name> -l '2' && tmux send-keys -t <name> Enter
+         ```
+         (If the user's start.sh has been customized to strip `--dangerously-skip-permissions`, the modal won't appear — skip this substep.)
+      2. **Ready prompt** — input box visible, no modal. Once you see it, send `start` to fire the SessionStart hook (registers heartbeat and cron tasks):
+         ```bash
+         tmux send-keys -t <name> -l 'start' && tmux send-keys -t <name> Enter
+         ```
+
+   d. **Wait for the user to pair (NOT the bot)** — say to the user **explicitly**:
       > "Open Telegram and DM **@<new-bot-username>**. The bot will reply with a 6-character pairing code. **Paste that code back here.** I'm waiting for you, not for the bot — until you paste the code, nothing will happen on my end."
       Do not background-poll. Do not run `until grep ...; do sleep; done`. Just wait for the user's next message.
 
-   d. **Approve the pairing by editing `access.json` directly** — also bypass `/telegram:access` (same hardcoded-path bug). When the user pastes the code, look it up and add their user_id to the allowlist:
-      ```bash
-      # Read pending pairings from <bot-dir>/.telegram/access.json
-      # Find the entry matching the pasted code → grab its user_id and display name
-      # Move that user into "allowed" and remove from "pending"
-      # Optionally flip dmPolicy to "allowlist" once the user confirms nobody else needs in
-      ```
-      Use Read+Write on `<bot-dir>/.telegram/access.json` (don't shell-out to a non-existent skill).
+   e. **Approve the pairing by editing `access.json` directly** — also bypass `/telegram:access` (same hardcoded-path bug). When the user pastes the code:
+      - **Read the file first** — `<bot-dir>/.telegram/access.json`. Keep the structure/casing the plugin wrote.
+      - **Field contract**: `allowFrom` is an **array of user_id strings**, not objects (verified against the plugin's server.ts — `access.allowFrom.includes(senderId)` where senderId is a string). ✅ `"allowFrom": ["5941854392"]`  ❌ `"allowFrom": [{"userId": "5941854392", ...}]`
+      - Find the pending entry whose code matches; append its `user_id` (as a string) to `allowFrom`; remove it from `pending`.
+      - Optionally flip `dmPolicy` to `allowlist` once the user confirms nobody else needs in.
 
-   e. **Confirm success** — ask the user to send another message (e.g. "hi"). When they confirm the bot replied normally, you're done.
+   f. **Confirm success** — ask the user to send another message (e.g. "hi"). When they confirm the bot replied normally, you're done.
 
 Show the user how to manage multiple bots:
 - `tmux attach -t <name>` to watch any bot
