@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// Tiny CLI client for the supervisor's Unix-socket surface. Invoked by the
-// `/zero-claw:supervisor` slash command; also usable by hand from any shell
-// inside the project tree.
+// Supervisor CLI. A shell-invocable twin of the Telegram bot — every
+// subcommand you can type in Telegram (status / restart / start / stop /
+// logs / screen / send / monitor) works here, driving the exact same
+// dispatcher on the supervisor side (same code path, same state).
 //
-// Usage:  supervisor/cli.mjs <subcommand> [args...]
+// Usage:  ./supervisor/zc <subcommand> [args...]
 //
 // Walks up from the caller's cwd to find the project root (the nearest
 // ancestor that contains `ecosystem.config.cjs`), then connects to the
-// sibling socket `.zero-claw-supervisor.sock`. Dispatching happens server-
-// side via `commands.dispatch`, so every subcommand the Telegram bot
-// understands works here too — same code path, same state.
+// sibling Unix socket `.zero-claw-supervisor.sock` that the supervisor
+// process is listening on.
 
 import net from 'node:net';
 import fs from 'node:fs';
@@ -46,8 +46,8 @@ if (!fs.existsSync(sockPath)) {
     `Supervisor socket not found: ${sockPath}\n` +
       `\n` +
       `If the supervisor isn't running:   pm2 start ecosystem.config.cjs\n` +
-      `If it's running a pre-0.19 copy:   /zero-claw:upgrade  (or replace\n` +
-      `  supervisor/ from \$CLAUDE_PLUGIN_ROOT/supervisor and pm2 restart).`
+      `If it's running a pre-0.19 copy:   run /zero-claw:upgrade from inside\n` +
+      `  a Claude Code session, then pm2 restart <project>-supervisor.`
   );
 }
 

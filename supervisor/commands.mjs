@@ -1,7 +1,8 @@
 // Shared command layer. Called by both the Telegram bot (index.mjs) and the
-// local Unix-socket CLI (cli.mjs). Each handler returns a plain-text string
-// on success, or throws `UserError` for expected user-facing errors (bad bot
-// name, missing argument, etc.). Any other thrown error is an internal bug.
+// local Unix-socket CLI (supervisor/zc). Each handler returns a plain-text
+// string on success, or throws `UserError` for expected user-facing errors
+// (bad bot name, missing argument, etc.). Any other thrown error is an
+// internal bug.
 //
 // Output is plain text. Telegram's MarkdownV2 is strict and easy to break;
 // template/CLAUDE.md explicitly asks us to default to plain text. Dropping
