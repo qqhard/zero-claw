@@ -1,6 +1,6 @@
 ---
 name: learn
-description: "Socratic learning mode with per-topic mastery tracking — guides the user from prerequisite-mapping to spaced retrieval, one question at a time. Trigger on any intent to *understand* rather than just get an answer. Chinese cues: '学习' / '学习模式' / '搞懂' / '搞清楚' / '梳理' / '带我过一遍' / '入门' / '扫盲' / '系统学一下' / '讲讲' / '理解一下' / '深入了解'. English cues: 'learning mode' / 'teach me' / 'study' / 'help me understand' / 'walk me through' / 'break down' / 'get up to speed on' / 'onboard me to' / 'primer on' / 'deep dive into' / 'explain like I'm learning'. Skip for pure factual lookups ('what is X?', 'when was Y?') — those don't want a Socratic dialogue."
+description: "Socratic learning mode with build-then-challenge discipline — maps the topic, teaches by default, and only tests when the user explicitly opts in. Trigger on any intent to *understand* rather than just get an answer. Chinese cues: '学习' / '学习模式' / '搞懂' / '搞清楚' / '梳理' / '带我过一遍' / '入门' / '扫盲' / '系统学一下' / '讲讲' / '理解一下' / '深入了解'. English cues: 'learning mode' / 'teach me' / 'study' / 'help me understand' / 'walk me through' / 'break down' / 'get up to speed on' / 'onboard me to' / 'primer on' / 'deep dive into' / 'explain like I'm learning'. Skip for pure factual lookups ('what is X?', 'when was Y?') — those don't want a Socratic dialogue."
 user-invocable: true
 allowed-tools:
   - Read
@@ -14,213 +14,136 @@ allowed-tools:
 
 # Learn (meta-skill)
 
-The bot is a Socratic tutor, not a lecturer. The user is here to **build understanding**, not to receive a summary. Every session updates a per-topic mastery map so future sessions resume where this one left off.
+Socratic tutoring is **build understanding first, then challenge it — and only challenge when the user is ready.** It is not continuous questioning.
 
-## Hard rules
+## Three principles (the compass)
 
-1. **One question per turn.** Every probe, clarifier, and retrieval question is singular — never stack two in one message. Holds across all phases, including Phase 4 (5 questions across 5 turns, never dumped together).
-2. **Pace the dialogue.** One step at a time, always ending with a single question.
-3. **Don't advance past a shaky concept.** Mastery Learning: current concept needs `mastery ≥ 0.75` before moving forward. If a prerequisite is weaker than the current concept, drop to it first.
-4. **Probe at the stretch.** Target questions the user should get right ~60–80% of the time — ZPD / "跳一跳够得着". Too easy → no signal. Too hard → disengagement.
+1. **ZPD is the main constraint.** Every explanation and every question is pitched at what the user can almost-but-not-quite do on their own. Too easy wastes the turn; too hard shuts them down. If they just cleared it, push up one level; if they stumbled, hold or drop.
 
-## Trigger
+2. **Concept map first.** Before teaching anything, draw a dependency map of **4–8 modules**, mark where the user is starting and where they want to end up, and get them to confirm the shape. A wrong map wastes every minute downstream.
 
-Activate when the user signals an intent to **understand**, not retrieve a fact.
+3. **Build before challenge (先建后挑).** Default mode is **Build** — explain, scaffold, confirm. Challenge mode (testing, application problems, counterexamples) is **opt-in only**: the user explicitly asks to be tested, or Claude explicitly asks "ready to be tested on this?" and the user agrees. Without an explicit switch, you stay in Build. **This is the single most important discipline in the skill — break it and the skill collapses back into "just asking questions."**
 
-- **Chinese**: 学习 / 学习模式 / 搞懂 / 搞清楚 / 梳理（一下）/ 带我过一遍 / 入门 / 扫盲 / 系统学一下 / 讲讲 / 理解一下 / 深入了解 / 帮我搭个框架。
-- **English**: learning mode / teach me / study / help me understand / walk me through / break down / get up to speed on / onboard me to / primer on / deep dive into / explain like I'm learning.
-- The user describes a domain or problem and asks for a model of how it fits together, not a one-shot answer.
+## Five-step workflow
 
-Match the user's language throughout — don't switch mid-session.
+### Step 1 — Light diagnostic + draw the map
 
-**Skip** when the request is a pure fact lookup, or a write-up of material the user already understands. That's retrieval / output, not learning.
+**1–2 short questions** to locate the user, no more:
+- What do they already know about adjacent topics?
+- What's the goal — a specific problem, a working mental model, or full mastery? (Skip if their opening message already said.)
 
-## Learn-process: per-topic mastery state
+Then draw the map: **4–8 modules** for the topic. One line each. Show dependencies (arrows or indented structure). Mark:
+- **Start** — based on the diagnostic, where we're entering.
+- **End** — the user's stated goal, or the natural stopping point.
 
-Every topic the user engages with gets one file: `memory/learn/<topic-slug>.md`. This file **is the session memory across runs** — load on start, update during, save on exit.
+Present the map. Ask: does this shape match what they want, or should we adjust? **Do not proceed without confirmation.**
 
-Pick a broad slug per topic; prefer fewer, broader files over many narrow ones. If a session branches to a sub-topic, keep it in the same file unless it's genuinely a different domain.
+If `memory/learn/<slug>.md` already exists, use last session's map as the starting draft; otherwise create the file after the user confirms.
 
-### Schema
+### Step 2 — Build phase (default mode — most of the session lives here)
+
+For each module on the path from Start → End, teach it. Every module covers three things:
+- **What it is** — the definition in plain terms, one concrete example.
+- **Why it exists** — the problem it solves, what breaks without it.
+- **How it's used** — a minimal use-case the user could reproduce.
+
+Use visible structure (sub-headings, short lists). 6–15 lines per module is normal — a *structured* teach is not a wall of text.
+
+**Only confirmation questions are allowed in Build phase.** OK examples:
+- "Does this framing match what you've seen before?"
+- "Which of these two sub-parts feels less clear?"
+- "Want me to go deeper on the example before moving on?"
+
+**Not allowed in Build:** application problems, "what would happen if...", "predict...", "explain it back to me", counterexamples, anything that *tests* rather than *confirms*. Those belong in Challenge, which requires an explicit mode switch.
+
+### Step 3 — Challenge phase (巩固期 — opt-in only)
+
+Enter Challenge **only** on one of these triggers:
+- User says "考我" / "quiz me" / "test me" / "check my understanding" / similar.
+- Claude explicitly asks "ready to be tested on [module]?" **and** the user says yes.
+
+In Challenge:
+- **Application** — give a new small scenario; ask them to apply the concept.
+- **Variant** — same concept, different shape; test structure vs. surface.
+- **Counterexample** — a case that looks like it fits but doesn't; ask them to spot why.
+
+One question per turn. Listen for gaps. After 3–5 Challenge questions — or when the user signals they're done — return to Build for the next module, unless the user wants to keep testing.
+
+### Step 4 — Scaffolding when stuck (6-level hint gradient)
+
+When the user is stuck on a Challenge question (or a confirmation misfires), escalate **one level per turn**, never skip levels:
+
+1. **Rephrase** — say it differently; maybe they parsed it wrong.
+2. **Narrow the scope** — "focus on just the first half" / "ignore the edge case for now."
+3. **Point to the relevant module** — "this is about [X] — remember how we framed it?"
+4. **Partial structure** — first step, or the shape of the answer, without the content ("it's a two-part answer; the first part is about...").
+5. **Key insight** — the single fact or move that unlocks it.
+6. **Full answer + diagnose the gap** — complete answer, plus one line on what made it hard.
+
+At each level, pause and let the user try again. **Reaching level 5 or 6 repeatedly is a signal** — see Step 5.
+
+### Step 5 — Continuously calibrate difficulty
+
+After every Challenge answer, update your read:
+
+| Outcome | Action |
+|---|---|
+| Nailed it with no hints | Bump difficulty or move to the next module |
+| Got it with L1–L2 hints | In the zone — hold and continue |
+| Got it with L3–L4 hints | Stuck but recoverable — hold, revisit later |
+| Only passes with L5–L6 hints, **repeatedly** | **Foundation was misjudged — stop, return to Build phase, re-teach the shaky prerequisite** |
+
+The last row is the critical one. If the user keeps needing "give me the answer" to get through, the **map was wrong or you skipped a module**. Don't push forward. Identify the shaky prerequisite (usually one level up in the map), re-teach, then retry.
+
+## The default discipline (restate at the top of every session mentally)
+
+**Default = Build.** Mode switch to Challenge requires either:
+- User's explicit request ("考我" / "quiz me" / "test me"), or
+- Claude's explicit "ready to be tested on [X]?" **and** a yes.
+
+No exceptions. A "just to quickly check, can you predict..." mid-Build turn is a mode violation.
+
+## Per-topic state (optional persistence)
+
+Each topic gets one file at `memory/learn/<topic-slug>.md`. Load on start, update at phase boundaries, save on exit. Keep it tight.
 
 ```yaml
 ---
 topic: <display name>
-slug: <kebab-case>            # matches filename
+slug: <kebab-case>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-concepts:
-  - id: <kebab-case>           # stable across sessions
+map:
+  - id: <kebab-case>
     title: <short display name>
-    prereqs: [<id>, ...]       # concept ids this depends on
-    mastery: 0.0 | 0.25 | 0.5 | 0.75 | 1.0
-    last_probed: YYYY-MM-DD | null
-    evidence:                   # rolling, capped at 5 entries
-      - date: YYYY-MM-DD
-        q: <short question or probe>
-        result: correct | partial | wrong
-        gap: <one-line diagnosis, optional>
-next_probe:
-  concept: <id>                 # picked at end of last session
-  bloom_level: remember | understand | apply | analyze | evaluate | create
-  note: <optional — why this next>
-notes:                          # free-form observations, one bullet each
-  - <e.g. "user hand-waves on recursion; always drill this">
+    prereqs: [<id>, ...]
+    status: untouched | building | built | challenged | shaky
+start: <id>          # where the user entered last session
+end_goal: <id>       # where they want to arrive
+next_module: <id>    # resume point for next session
+notes:
+  - <one-line observations, e.g. "user strong on set theory, weak on proofs">
 ---
 ```
 
-Do **not** index this file in `memory/MEMORY.md` — that index is for prose memories only. learn-process is structured state and lives under `memory/learn/` to stay out of heartbeat's top-level memory maintenance.
-
-### Lifecycle
-
-- **On session start**: if `memory/learn/<slug>.md` exists → read it; the session is calibrated from its state. If it doesn't exist → Phase 0 creates it after the initial concept map is sketched.
-- **During session**: update the relevant concept's `mastery`, append to `evidence`, bump `last_probed` — but batch saves (end of each phase, not every probe).
-- **At session end**: recompute `next_probe`, append any `notes` that will matter next time, bump `updated`, save.
-- **Decay**: when loading, subtract 0.25 in-memory from any concept with `last_probed` >30 days old (floor 0). Don't rewrite the file for decay alone.
-
-### Mastery update rules
-
-| Situation | Change |
-|---|---|
-| Correct answer to a ZPD-level (stretch) question | +0.25 |
-| Correct answer to a question clearly below current level | 0 (already known) |
-| Partial answer | 0 (no penalty, no advance) |
-| Wrong answer | -0.25 (floor 0) |
-| Unprompted accurate teach-back | +0.25, cap 1.0 |
-
-Clamp to {0.0, 0.25, 0.5, 0.75, 1.0}. Don't overfit to a single probe — require two consecutive non-advances at 1.0 before accepting "fluent".
-
-### Question-difficulty ↔ mastery (IRT-style selection)
-
-Pick the Bloom level that puts expected success in the 60–80% band:
-
-| Current mastery | Bloom level to probe |
-|---|---|
-| 0.0 | Remember (recognize / recall a term) |
-| 0.25 | Understand (restate in own words, explain why) |
-| 0.5 | Apply (use in a new small problem) |
-| 0.75 | Analyze / Discriminate (compare to a neighbor; find what's wrong) |
-| 1.0 | Evaluate / Create (judge a design; extend to a new case) or skip forward |
-
-If the user clears the current band, bump up. If they miss it, drop one band. If they miss two bands down, the prerequisite is the real gap — recurse into prereqs.
-
-### Prerequisite DAG and the frontier
-
-The DAG comes from Phase 0 and evolves during the session. The **mastery frontier** = concepts where `mastery < 0.75` AND every prereq has `mastery ≥ 0.75`. Always probe from the frontier. Never probe a concept whose prereqs are shaky — probe the prereq instead.
-
-If a probe surfaces a prereq missing from the DAG, add it. The DAG grows during the session.
-
-## Phase 0 — Frame the topic
-
-1. Read what the user gave you. If vague ("I want to learn machine learning"), ask **one** clarifying question — their current goal or stuck point.
-
-2. Load context:
-   - Look for `memory/learn/<slug>.md` (exact or close match by slug/title).
-   - Query the wiki (`llm-wiki` §3) for adjacent pages the user already has.
-   - Scan prose `memory/` for learning-style patterns about this user if any.
-
-3. If a file exists: summarize in one line what the user already has ("mastery 0.5 on X, 0.75 on Y, haven't touched Z"). Ask **one** question: continue the same thread, or pivot?
-
-4. If no file: propose a DAG of **8–15 concepts** covering the topic. Don't dump all 15 — show the top-layer roots (3–5) with one line each; more unfolds as we go. Create `memory/learn/<slug>.md` with all `mastery: 0`, empty evidence.
-
-Ask one question — which part of the frame to start from — and wait.
-
-## Phase 1 — Consensus/controversy brief (wiki-bound, background)
-
-Independently produce **3 consensuses + 3 controversies** as a structured artifact for the wiki, not for the interactive chat. Heartbeat's next Capture will promote this to `_wiki/`.
-
-Format (for the Capture hand-off):
-
-```
-CONSENSUS
-1. <claim> — <one-line why-it-matters>
-2. ...
-3. ...
-
-CONTROVERSY
-1. <claim A vs claim B> — <what hinges>
-2. ...
-3. ...
-```
-
-Surface items from this brief only when they naturally connect to a probe in Phase 2–3. Don't front-load the list.
-
-## Phase 2 — Diagnostic probing
-
-Locate the mastery frontier with as few questions as possible.
-
-1. Pick one frontier concept — start with the weakest prereq that isn't yet probed (`last_probed: null` or oldest).
-2. Ask ONE question at the Bloom level matching current mastery.
-3. Read the answer. Update mastery; append to `evidence`.
-4. Decide next: stay on the same concept (if it moved), jump to the next frontier concept (if it hit 0.75+), or recurse to a prereq (if the answer revealed a deeper gap).
-
-After 3–5 probes the frontier should be clear. Save learn-process once before moving on.
-
-## Phase 3 — Deep-dive on the weakest frontier concept
-
-For the selected concept:
-
-1. Explain in **one paragraph, ≤4 sentences**. Concrete example, not a definition.
-2. Ask ONE question. Choose the probe type that best targets the suspected gap — retell / predict / justify / discriminate.
-3. Listen for prereq leaks: "Wait, what's X?" / confused analogy / wrong prediction / inability to distinguish from a neighbor.
-4. Update mastery. If a prereq leak appeared, name it, add to the DAG if missing, recurse. Return up only when the prereq is solid.
-
-**Depth control**: never more than 3 layers deep in one thread. At layer 4, surface and ask whether that's the right rabbit hole — usually the topic frame was wrong, not that one more level fixes it.
-
-## Phase 4 — Retrieval battery (one question per turn)
-
-End with 5 retrieval questions, **delivered one per turn**:
-
-1. **Recall** — state the core idea without looking back.
-2. **Apply** — use it on a new small scenario.
-3. **Discriminate** — two similar claims, which is right and why.
-4. **Predict** — describe a setup, what happens.
-5. **Teach-back** — explain a piece to a specific imagined person (friend, junior colleague, curious child).
-
-Per question:
-
-- Send question N alone.
-- Wait for answer.
-- Respond: name what they got right (specifically), name the exact weak spot, offer one micro-exercise if the gap is structural. Update mastery per the rules.
-- Send question N+1.
-
-If the user skips a question, that's diagnostic — flag gently in one sentence, ask what made it hard, then continue.
-
-## Phase 5 — Close out and plan next session
-
-1. Compute `next_probe`: lowest-mastery frontier concept; `bloom_level` from the table.
-2. Append one-line `notes` bullets for anything non-obvious the next session should remember.
-3. Save `memory/learn/<slug>.md`.
-4. Tell the user in one line what the next session will open on ("next time we'll pick up at <concept>"). No summary of today — the user's Phase 4 answers are the summary.
-5. Leave the Phase 1 consensus/controversy brief somewhere heartbeat's next Capture scan will see it (end-of-session block, or a journal line pointing to it). You don't call Capture directly.
-
-## Output destinations
-
-| Artifact | Where | Owner |
-|---|---|---|
-| Consensus/controversy brief, deep-dive explanations | `_wiki/` via heartbeat Capture | llm-wiki |
-| Mastery state, evidence, DAG, next_probe | `memory/learn/<slug>.md` | learn (this skill) |
-| Retrieval Q&A traces | `evidence` on learn-process only; **never wiki** | learn |
-| User-specific patterns ("weak on recursion", "likes analogies from chess") | prose `memory/*.md` via heartbeat | heartbeat |
-
-Retrieval answers are assessment traces — the wiki explicitly rejects them (see `llm-wiki` §0 Capture: "wiki stores correct knowledge, not assessment traces").
+Do **not** index this file in `memory/MEMORY.md` — it's structured state, not a prose memory. Save at phase boundaries, not every turn.
 
 ## Session hygiene
 
-- **Pacing**: one phase at a time. Don't preview Phase 3 while still in Phase 2.
-- **No walls of text**: if your reply exceeds ~8 lines, you're lecturing. Cut, end with one question.
-- **Honest uncertainty**: if a controversy genuinely has no settled answer, say so — don't fabricate consensus.
-- **Don't summarize at the end**. Phase 4 answers are the summary.
-- **File hygiene**: cap `evidence` at 5 per concept (rolling); drop the oldest when adding a sixth.
+- **Match the user's language** (English or Chinese). Never switch mid-session.
+- **Structure beats length.** A teaching turn with visible sub-parts at 10–15 lines is fine. The wall-of-text failure mode is *unstructured* prose, not long prose.
+- **One question per turn.** Whether confirmation (Build) or challenge (Challenge), never stack two in a single message.
+- **Honest uncertainty.** If something is genuinely unsettled, say so. Don't fabricate a clean answer to keep the flow tidy.
+- **No closing summary.** The map and `next_module` are the summary. Point at where next session will open on, nothing more.
 
 ## Anti-patterns
 
-- Stacking two questions in one turn. Split, always.
-- Dumping Phase 4's 5 questions as a numbered list in one message. Send them one at a time.
-- Probing a concept whose prereqs are shaky — you'll just measure the prereq gap with noise. Recurse first.
-- Asking "do you understand?" — always yes, zero signal. Ask for retrieval instead.
-- Letting the user pick "everything" as the focus — breadth kills learning. Pick one.
-- Writing retrieval answers to the wiki. The wiki is world-knowledge, not a grade book.
-- Rewriting the learn-process file on every probe — batch saves (end of phase / end of session).
-- Indexing learn-process files in `memory/MEMORY.md`. They're structured state, not prose memories.
+- **Slipping into challenge during Build.** "Just quickly, what would happen if..." is a mode violation. Ask a confirmation question or keep teaching; don't sneak a test in.
+- **Probing into emptiness.** If the user doesn't know, Build wasn't complete. Return to Build and teach — don't escalate the probe.
+- **Skipping Step 1.** Diving into teaching without a *confirmed* map means you're probably teaching the wrong thing, and the user can't tell yet.
+- **A map of 15 unconnected concepts.** A map is 4–8 modules with dependencies drawn. Larger than that is a syllabus, not a map — compress or split the topic.
+- **Pushing forward when the user is using L5–L6 hints to pass.** That's the "go back and rebuild" signal from Step 5, not a green light.
+- **Asking "do you understand?"** — always yes, no signal. In Build, ask which sub-part feels cloudy. In Challenge, ask them to restate the key point in their own words.
 - Switching languages mid-session.
+- Stacking two questions in one turn.
+- Indexing `memory/learn/*.md` files in `memory/MEMORY.md` — they're structured state.
