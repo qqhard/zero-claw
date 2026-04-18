@@ -15,7 +15,7 @@ import { createCommands, UserError } from './commands.mjs';
 // the source of truth for event traces in pm2 logs.
 //
 // The local Unix-socket surface below is independent of the Telegram bot —
-// `./supervisor/claw` works even in headless mode.
+// `./supervisor/zeroclaw` works even in headless mode.
 const BOT_TOKEN = process.env.SUPERVISOR_BOT_TOKEN;
 const HEADLESS = !BOT_TOKEN;
 
@@ -148,9 +148,9 @@ if (!HEADLESS) {
 }
 
 // --- Local Unix-socket surface ---
-// Same command dispatcher as Telegram — used by `supervisor/claw` (the shell
-// CLI) so that `./supervisor/claw <cmd>` drives the exact same code paths as
-// the Telegram bot (shared manager state, shared restart counter, shared
+// Same command dispatcher as Telegram — used by `supervisor/zeroclaw` (the
+// shell CLI) so that `./supervisor/zeroclaw <cmd>` drives the exact same
+// code paths as the Telegram bot (shared manager state, shared restart counter, shared
 // monitor registry). Listens at `<cwd>/.zero-claw-supervisor.sock`; cwd is
 // set by pm2 from ecosystem.config.cjs → `cwd: __dirname`, i.e. the project
 // root. Permissions are 0600: anyone with filesystem access to the project
