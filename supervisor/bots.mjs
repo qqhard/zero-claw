@@ -672,6 +672,27 @@ export function createBotManager({ bots, config, onEvent = () => {} }) {
     }));
   }
 
+  // --- MCP disconnect marker ---
+  // The bot's heartbeat drops `<work-dir>/.zero-claw/mcp-disconnected` when it
+  // finds the Telegram reply tool missing — Claude Code occasionally yanks the
+  // plugin out of a long-running session (observed right after background
+  // subagents return). Bot can detect it (tool list is authoritative) but
+  // can't reconnect from inside; supervisor restart is the known fix.
+  function mcpDisconnectMarker(bot) {
+    return path.join(bot.workDir, '.zero-claw', 'mcp-disconnected');
+  }
+
+  function checkAndClearMcpMarker(bot) {
+    const f = mcpDisconnectMarker(bot);
+    if (!fs.existsSync(f)) return false;
+    try {
+      fs.unlinkSync(f);
+    } catch {
+      /* race with bot rewriting it; next tick catches it */
+    }
+    return true;
+  }
+
   // --- Watchdog ---
   function watchdogTick() {
     for (const bot of BOTS) {
@@ -683,6 +704,20 @@ export function createBotManager({ bots, config, onEvent = () => {} }) {
       // closes → last session → server exits), and that tripped the same
       // branch, making the watchdog silently inert after any real crash.
       if (stoppedByUser.has(bot.name)) continue;
+
+      // MCP disconnect marker — restart even when claude itself is alive.
+      // Clear-then-act: if startProcess fails, next tick will see no marker
+      // and fall through to the regular death path, which is the correct
+      // recovery.
+      if (checkAndClearMcpMarker(bot)) {
+        console.log(`[watchdog] ${bot.name}: MCP disconnect marker found, restarting`);
+        onEvent(`${bot.name} MCP disconnected — restarting to reconnect`);
+        markRestart(bot.name);
+        invalidateContextCache(bot.name);
+        resetRestartState(bot.name);
+        startProcess(bot);
+        continue;
+      }
 
       const state = getRestartState(bot.name);
       const sessionUp = sessionExists(bot);
