@@ -28,17 +28,29 @@ Socratic tutoring is **build understanding first, then challenge it — and only
 
 ### Step 1 — Multi-round MCQ probe (脑暴)
 
-Before drawing anything, run **3–5 short rounds** of MCQ / yes-no / A-B-C questions to brainstorm the user's goal and current footing. **One question per turn**, each a *different orthogonal dimension* — don't re-ask the same dimension with refined wording. Prefer `AskUserQuestion` so options are explicit; the user can always free-text to elaborate.
+Probe **thoroughly**, in two layers. Most sessions need **6–10 rounds**, sometimes more. **One question per turn**, each a *different orthogonal dimension* — don't re-ask the same dimension with refined wording. Prefer `AskUserQuestion` so options are explicit; the user can always free-text to elaborate.
 
-Dimensions to pick from (choose 3–5 that actually matter for *this* topic — not all):
+**Layer A — coarse probes (3–4 rounds, user-agnostic dimensions):**
 
 - **Goal shape** — solve a specific problem / build a working mental model / full mastery / just curious.
 - **Current level** — never heard of it / heard the name / used it a few times / use it regularly.
 - **Adjacent knowledge** — pick 3–4 prerequisite concepts and ask which ones the user already has solid.
-- **Friction point** — where have they gotten stuck before? (Include a "haven't tried" option so it's not leading.)
 - **Delivery preference** — conceptual framing / worked example / code walkthrough / compare-and-contrast with a thing they already know.
 
-**Stop probing when you have enough signal to draw the map.** Two rounds may be enough for a narrow topic; five for a broad one. Never exceed five — that's a sign the topic isn't scoped yet and you should just show a draft map and let the user react.
+**Layer B — domain-specific probes (3–5+ rounds, tailored to THIS topic):**
+
+Layer A locates the user generically. Layer B is where the map becomes *theirs*. Pick the axes that matter for this domain. Typical ones:
+
+- **Framework / tool exposure** — which specific implementations have they used? (e.g. for LLM training: FSDP / DeepSpeed / Megatron / JAX mesh / accelerate.)
+- **Paper / primary-source exposure** — which canonical papers or docs have they read? (Answers change the vocabulary you can assume.)
+- **Scale of prior experience** — single-card / single-node / multi-node / cluster; toy / production.
+- **Hardware access** — what they actually run on, because "best strategy" is hardware-conditional.
+- **Concrete pain point that drove them here** — OOM / too slow / specific bug / curiosity / interview prep. A "haven't hit one" option keeps it non-leading.
+- **The one question they most want answered** — if they had to pick a single takeaway, what would it be?
+
+Goal: move from "intermediate user" to something like "read ZeRO paper but not Megatron-LM; trained up to 4-GPU single-node with FSDP; never touched MoE; bottleneck was OOM, not throughput." That's the signal density that makes the map targeted instead of generic.
+
+**Stop when signal saturates** — when 2 rounds in a row return answers that don't change the map you'd draw, you're done. Don't count rounds; count surprises. Broad domains (distributed systems, LLM training, compilers) often need 8–10 rounds of signal. Narrow topics (a specific API) may saturate in 2–3.
 
 ### Step 2 — Draw the map + Pareto briefing
 
@@ -167,7 +179,8 @@ Do **not** index this file in `memory/MEMORY.md` — it's structured state, not 
 ## Anti-patterns
 
 - **Skipping the MCQ probe** and diving straight into a map. You're guessing the user's goal and footing — the map will be wrong and you won't know until Step 4.
-- **Endless probing.** More than five rounds in Step 1 means the topic isn't scoped — draft a map and let the user react to it instead.
+- **Probing only Layer A.** 3–4 coarse rounds (goal / level / adjacent knowledge / delivery preference) locate the user generically but produce a generic syllabus, not a targeted map. Always run **Layer B (domain-specific): frameworks / papers / scale / hardware / pain point** until signal saturates.
+- **Stopping at 3–5 rounds by default.** The stop rule is *signal saturation* (2 consecutive rounds return no surprises), not a round count. Broad domains often need 8–10 rounds.
 - **Stacking probes.** Two MCQ questions in one turn violates one-question-per-turn. Each round is its own message.
 - **Missing the Pareto briefing.** Handing over a module list without the 3 consensuses / 3 controversies strips out the spark — the user doesn't know which parts are load-bearing, settled, or contested.
 - **Asking the learner to confirm domain content.** "Does this map match what you want?" / "Which sub-part felt cloudy?" / "Want me to go deeper on (a) or (b)?" — all require the knowledge they're trying to acquire. Auto-generate the map from Step 1, proceed through Build without self-assessment prompts, and surface gaps via Challenge (opt-in) instead. The only legitimate end-of-module question is the binary **"ready to be tested?"** — that's a preference, not a domain judgment.
