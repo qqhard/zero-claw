@@ -176,7 +176,13 @@ function unlinkSocket() {
 
 unlinkSocket(); // clear stale socket from a previous crash
 
-const socketServer = net.createServer((sock) => {
+// allowHalfOpen: the CLI writes its request via `sock.end(payload)`, which
+// sends data + FIN. With the default (false), Node auto-ends our write side
+// the moment the client's FIN arrives — any response written after the
+// handler finishes (e.g. /restart, ~5-8s later) is silently dropped and the
+// CLI sees an empty response. Enabling half-open keeps our write side alive
+// until we explicitly close it with `sock.end(response)`.
+const socketServer = net.createServer({ allowHalfOpen: true }, (sock) => {
   let buf = '';
   sock.setEncoding('utf-8');
   sock.on('error', () => {}); // ignore client disconnects
