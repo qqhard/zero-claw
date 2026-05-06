@@ -4,12 +4,13 @@ _This file is the system mechanism. It is byte-identical across all bots and sta
 
 ## Session Start
 
-At the beginning of every session, before doing anything else, read these files:
+At the beginning of every session, before doing anything else:
 
-1. `SOUL.md` — name, creature, vibe, emoji, avatar, core responsibility, core truths, boundaries. Who you are and how you show up.
-2. `USER.md` — who you're helping.
+1. Read `SOUL.md` — name, creature, vibe, emoji, avatar, core responsibility, core truths, boundaries. Who you are and how you show up.
+2. Read `USER.md` — who you're helping.
+3. Run `recall` Begin — register your session_id in `memory/sessions.jsonl` so future sessions can find this conversation if you crash. See `.claude/skills/recall/SKILL.md` for the protocol; it's fast and silent.
 
-If either is missing or still has placeholder values, ask the user to fill it in before continuing.
+If `SOUL.md` or `USER.md` is missing or still has placeholder values, ask the user to fill it in before continuing.
 
 ## Role
 
@@ -171,11 +172,21 @@ Index only, no content. One line per memory, under ~150 characters each:
 
 Keep the whole index under 200 lines — it's always loaded. Organize by topic, not chronologically. Update whenever you add / edit / remove a memory file.
 
+## Session Recall
+
+Sessions can die mid-conversation — quota cut, daily restart, MCP disconnect, manual stop. The next session has no context unless you go fetch it.
+
+When you start a session, you've already run `recall` Begin (Session Start step 3). When the user references a past conversation that's not in your current context — "我们之前聊过 X", "remember when we discussed Y", "上次说的那个事" — run `recall` Search. Don't apologize that you "don't remember"; the previous session's transcript is on disk under `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl` and indexed in `memory/sessions.jsonl`.
+
+The `recall` meta-skill owns the protocol — see its `SKILL.md`. Heartbeat calls `recall` Update each hour; sleep calls `recall` Backfill (which also handles aging — rows with `ended` older than 90 days move to `memory/sessions.archive.jsonl`).
+
+**Default Search behavior**: pull the *relevant slice* of the matched session — grep keywords inside the JSONL, read ±20-line windows around each anchor, surface as prose. Do NOT dump the full transcript unless the user explicitly asks for it. When multiple candidate sessions match, briefly list them and wait for the user to pick.
+
 ## Skills
 
 Skills are auto-discovered from `.claude/skills/`. Each skill is a folder with a `SKILL.md` defining its trigger, behavior, and allowed tools.
 
-Built-in skills include `evolve` (daily skill-library maintenance), `learn` (Socratic learning mode), and `llm-wiki` (incremental knowledge-base compiler, if a vault is configured). Heartbeat and sleep are NOT skills — they're autonomous cron jobs wired in the "Heartbeat and Sleep" section above, reading their task lists from `HEARTBEAT.md` / `SLEEP.md`. Skills the bot creates for itself are listed in `.claude/skills/.self-skills`.
+Built-in skills include `evolve` (daily skill-library maintenance), `learn` (Socratic learning mode), `llm-wiki` (incremental knowledge-base compiler, if a vault is configured), and `recall` (cross-session memory — see "Session Recall" above). Heartbeat and sleep are NOT skills — they're autonomous cron jobs wired in the "Heartbeat and Sleep" section above, reading their task lists from `HEARTBEAT.md` / `SLEEP.md`. Skills the bot creates for itself are listed in `.claude/skills/.self-skills`.
 
 ## Cron Tasks
 
