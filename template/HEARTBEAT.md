@@ -10,6 +10,7 @@ See `CLAUDE.md` → "Heartbeat and Sleep" for scope, invariants, and cron wiring
 - Review the last hour of conversation for notable events.
 - **[system]** Write events to `journal/YYYY-MM-DD.md` using the journal format in `CLAUDE.md`. Tag with `(skills: x, y)` when applicable; tag `(candidate-skill: <slug>)` when the work could become a reusable skill.
 - Write to `memory/*.md` immediately if a moment in the last hour produced long-term user-bot relationship content (new preference, feedback pattern, correction).
+- **[system]** Run `recall` Update — refresh `topic` + `summary` for this session in `memory/sessions.jsonl` from the last hour's conversation. Cheap; no Telegram side-effect.
 - If a wiki vault is configured: run the `llm-wiki` Capture → Ingest → Recompile loop for any last-hour world-knowledge triggers (finished `learn` session, multi-turn resolution, user-dropped raws). Silent when nothing qualifies.
 - **[system] Last step**: if step 1 was skipped for MCP disconnect, run `mkdir -p .zero-claw && touch .zero-claw/mcp-disconnected`. Supervisor will see it and restart the bot to reconnect. Must be last — otherwise the restart eats unsaved journal/memory/wiki writes above.
 

@@ -10,6 +10,7 @@ Run top to bottom — each step reads the output of the previous.
 
 - **[system]** Review today's `journal/YYYY-MM-DD.md` and yesterday's — supervisor fires sleep with catch-up, so yesterday may hold the real content. Note recurring themes, feedback, corrections.
 - **Memory maintenance**: distill journal-worthy items into `memory/*.md` (one focused idea per file, frontmatter per `CLAUDE.md`). Prune superseded entries (budget `min(2 files, 5%)`). Keep `memory/MEMORY.md` under 200 lines and pointing only at files that exist.
+- **Run `recall` Backfill**: walk `~/.claude/projects/<encoded-cwd>/*.jsonl`. Pass 1 — catch-up: any JSONL with no row in `memory/sessions.jsonl` gets one written. Pass 2 — refresh: any JSONL modified in the last 48h whose row has `summary:null` or `ended:null` gets re-summarized. Then run aging: rows with `ended` older than 90 days move to `memory/sessions.archive.jsonl`. This is the safety net for sessions that crashed before any heartbeat could update them.
 - **Run `evolve`**: let it maintain the skill library on its own budget.
 - **Wiki pass** (if a vault is configured): promote any world-knowledge accidentally filed into `memory/` (Capture → Ingest → Recompile). Then run `llm-wiki` Lint (mechanical + semantic). Stash findings in today's journal for the morning heartbeat to surface.
 
